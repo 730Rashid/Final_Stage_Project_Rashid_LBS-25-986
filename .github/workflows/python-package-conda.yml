@@ -10,25 +10,38 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    - name: Set up Python 3.11
-      uses: actions/setup-python@v3
+
+    - name: Setup Miniconda with Mamba
+      uses: conda-incubator/setup-miniconda@v3
       with:
-        python-version: '3.11'
-    - name: Add conda to system path
+
+        environment-file: .github/workflows/environment.yml
+
+        use-mamba: true
+
+        auto-activate-base: false
+
+    - name: Conda Cache
+      uses: actions/cache@v4
+      with:
+        path: /usr/share/miniconda/pkgs
+        key: conda-${{ runner.os }}-${{ hashFiles('.github/workflows/environment.yml') }}
+
+    - name: Install dependencies (if not in environment.yml)
+      shell: bash -l {0}
       run: |
-        # $CONDA is an environment variable pointing to the root of the miniconda directory
-        echo $CONDA/bin >> $GITHUB_PATH
-    - name: Install dependencies
-      run: |
-        conda env update --file environment.yml --name base
+        conda activate my-research-env
+        conda install flake8 pytest -y
+
     - name: Lint with flake8
+      shell: bash -l {0}
       run: |
-        conda install flake8
-        # stop the build if there are Python syntax errors or undefined names
+        conda activate my-research-env
         flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
         flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
     - name: Test with pytest
+      shell: bash -l {0}
       run: |
-        conda install pytest
+        conda activate my-research-env
         pytest
