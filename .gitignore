@@ -1,3 +1,168 @@
-
-# Python virtual environment
 .venv
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Jupyter Notebooks
+.ipynb_checkpoints
+*.ipynb_checkpoints/
+*/.ipynb_checkpoints/*
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+.python-version
+
+# Data files (don't commit large datasets)
+data/raw/*
+data/processed/*
+data/embeddings/*
+data/visualisation/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/embeddings/.gitkeep
+!data/visualisation/.gitkeep
+
+# Keep metadata and small files
+!data/metadata/*.csv
+!data/metadata/*.json
+
+# Model files and checkpoints
+*.pth
+*.pt
+*.h5
+*.hdf5
+*.pkl
+*.pickle
+models/
+checkpoints/
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+.project
+.pydevproject
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs and databases
+*.log
+logs/
+*.sqlite
+*.db
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+
+# Documentation builds
+docs/_build/
+site/
+
+# Reports and generated files (keep structure, not generated content)
+reports/figures/**/*.png
+reports/figures/**/*.jpg
+reports/figures/**/*.jpeg
+reports/figures/**/*.pdf
+reports/figures/**/*.svg
+reports/metrics/*.csv
+reports/metrics/*.json
+!reports/figures/.gitkeep
+!reports/metrics/.gitkeep
+
+# Temporary files
+*.tmp
+*.temp
+tmp/
+temp/
+
+# Large files that shouldn't be committed
+*.zip
+*.tar.gz
+*.rar
+*.7z
+*.dmg
+*.iso
+
+# Weights and embeddings (usually too large for git)
+*.npy
+*.npz
+*.mat
+
+# Except for small example data
+!examples/*.npy
+!examples/*.npz
+
+# MyPy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# pytype static type analyzer
+.pytype/
+
+# Cython debug symbols
+cython_debug/
+
+# Project specific
+disaster_viz.log
+*.log.*
