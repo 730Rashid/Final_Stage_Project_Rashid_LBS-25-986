@@ -197,7 +197,7 @@ def create_project_structure():
         create_file(base / notebook, '{"cells": [], "metadata": {}, "nbformat": 4, "nbformat_minor": 4}')
     
     print("\n" + "="*70)
-    print("✅ PROJECT STRUCTURE CREATED SUCCESSFULLY!")
+    print(" PROJECT STRUCTURE CREATED SUCCESSFULLY!")
     print("="*70)
     print("\nNext steps:")
     print("1. Copy the config files (settings.py, logging_config.py)")
@@ -215,7 +215,7 @@ if __name__ == "__main__":
     try:
         create_project_structure()
     except Exception as e:
-        print(f"\n❌ Error: {e}")
+        print(f"\n Error: {e}")
         print("Make sure you're running this from an empty directory or")
         print("a directory where you want to create the project structure.")
 

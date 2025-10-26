@@ -1,3 +1,6 @@
+#So these are the required packages for the project to run efficiently. Make sure to install them using pip.
+#These are subject to change based on project needs.
+
 python==3.11.9
 filelock==3.20.0
 fsspec==2025.9.0

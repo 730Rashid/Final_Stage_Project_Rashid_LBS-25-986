@@ -48,7 +48,7 @@ def get_image_files(
     if extensions is None:
         extensions = ['.jpg', '.jpeg', '.png', '.bmp', '.gif', '.tiff']
     
-    # Normalize extensions (ensure lowercase and leading dot)
+    # Normalise extensions (ensure lowercase and leading dot)
     extensions = [ext.lower() if ext.startswith('.') else f'.{ext.lower()}' 
                   for ext in extensions]
     
@@ -252,10 +252,10 @@ if __name__ == "__main__":
     # Test disk usage
     usage = get_disk_usage(config.PROJECT_ROOT)
     print(f"\nDisk usage:")
-    print(f"  Total: {usage['total_gb']:.2f} GB")
-    print(f"  Used: {usage['used_gb']:.2f} GB")
-    print(f"  Free: {usage['free_gb']:.2f} GB")
-    print(f"  Usage: {usage['percent_used']:.1f}%")
+    print(f"Total: {usage['total_gb']:.2f} GB")
+    print(f"Used: {usage['used_gb']:.2f} GB")
+    print(f"Free: {usage['free_gb']:.2f} GB")
+    print(f"Usage: {usage['percent_used']:.1f}%")
     
     # Clean up test directory
     test_dir.rmdir()

@@ -70,23 +70,23 @@ def check_gpu() -> bool:
                 y = x @ x
                 del x, y
                 torch.cuda.empty_cache()
-                print(f"  GPU Test: ✓ Simple operations working")
+                print(f"  GPU Test: Simple operations working")
             except Exception as e:
-                print(f"  GPU Test: ✗ Error during test - {e}")
+                print(f"  GPU Test: Error during test - {e}")
                 return False
             
             return True
         else:
             print("CUDA Available: No")
             print("PyTorch will use CPU for computations")
-            print("This is normal if you don't have a compatible GPU")
+            print("This is normal if you don't have a compatible GPU otherwise please check your hardware and drivers")
             return False
             
     except ImportError:
-        print("\n✗ PyTorch not installed - cannot check GPU")
+        print("\n PyTorch not installed - cannot check for GPU")
         return False
     except Exception as e:
-        print(f"\n✗ GPU check failed: {e}")
+        print(f"\n GPU check failed: {e}")
         return False
 
 
@@ -122,11 +122,11 @@ def check_clip() -> bool:
         return True
         
     except ImportError:
-        print("\n✗ CLIP not installed")
+        print("\n CLIP not installed")
         print("  Install with: pip install git+https://github.com/openai/CLIP.git")
         return False
     except Exception as e:
-        print(f"\n✗ CLIP check failed: {e}")
+        print(f"\n CLIP check failed: {e}")
         return False
 
 
