@@ -115,7 +115,7 @@ def get_gpu_memory_info(device: Optional[int] = None) -> Dict[str, float]:
         'reserved_gb': reserved,
         'total_gb': total,
         'free_gb': free,
-        'utilization_percent': (allocated / total) * 100
+        'utilisation_percent': (allocated / total) * 100
     }
 
 

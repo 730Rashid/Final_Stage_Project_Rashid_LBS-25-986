@@ -1,6 +1,6 @@
 """
 Complete Project Structure Setup Script
-Creates the entire disaster-viz project structure with all files and folders.
+Creates the entire disaster-visualisation project structure with all files and folders.
 Run this after creating your virtual environment and activating it.
 
 Usage:
@@ -16,14 +16,14 @@ def create_file(path: Path, content: str = ""):
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, 'w', encoding='utf-8') as f:
         f.write(content)
-    print(f"  ✓ Created: {path}")
+    print(f"    Created: {path}")
 
 
 def create_project_structure():
     """Create the complete project directory structure."""
     
     print("="*70)
-    print("DISASTER-VIZ PROJECT STRUCTURE SETUP")
+    print("DISASTER-VISUALISATION PROJECT STRUCTURE SETUP")
     print("="*70)
     print()
     
@@ -58,7 +58,7 @@ def create_project_structure():
     for directory in directories:
         dir_path = base / directory
         dir_path.mkdir(parents=True, exist_ok=True)
-        print(f"  ✓ {directory}/")
+        print(f"  {directory}/")
     
     print("\nCreating __init__.py files...")
     init_dirs = [
@@ -193,21 +193,39 @@ def create_project_structure():
     
     # Create empty notebook files
     print("\nCreating Jupyter notebooks...")
+    notebook_template = '''{
+ "cells": [],
+ "metadata": {
+  "kernelspec": {
+   "display_name": "Python 3",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "name": "python",
+   "version": "3.9.0"
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 4
+}'''
+    
     for notebook in notebook_files:
-        create_file(base / notebook, '{"cells": [], "metadata": {}, "nbformat": 4, "nbformat_minor": 4}')
+        create_file(base / notebook, notebook_template)
     
     print("\n" + "="*70)
-    print(" PROJECT STRUCTURE CREATED SUCCESSFULLY!")
+    print(" Project structure created successfully! ")
     print("="*70)
     print("\nNext steps:")
     print("1. Copy the config files (settings.py, logging_config.py)")
     print("2. Copy the utility files (file_utils.py, gpu_utils.py)")
     print("3. Copy requirements.txt and setup.py")
-    print("4. Copy verify_install.py")
-    print("5. Create .gitignore and README.md")
-    print("6. Run: pip install -r requirements.txt")
-    print("7. Run: python verify_install.py")
-    print("8. Run: git init && git add . && git commit -m 'Initial structure'")
+    print("4. Copy verify_install.py and .gitignore")
+    print("5. Create virtual environment: python -m venv venv")
+    print("6. Activate venv: venv\\Scripts\\activate (Windows) or source venv/bin/activate (Linux/Mac)")
+    print("7. Install dependencies: pip install -r requirements.txt")
+    print("8. Run verification: python verify_install.py")
+    print("9. Initialise git: git init && git add . && git commit -m 'Initial structure'")
     print()
 
 
@@ -218,99 +236,3 @@ if __name__ == "__main__":
         print(f"\n Error: {e}")
         print("Make sure you're running this from an empty directory or")
         print("a directory where you want to create the project structure.")
-
-            'clip_encoder.py',
-            'resnet_encoder.py',
-            'encoder_factory.py',
-            'batch_processor.py',
-            'embedding_storage.py'
-        ],
-        'src/reduction': [
-            '__init__.py',
-            'reducer_base.py',
-            'umap_reducer.py',
-            'tsne_reducer.py',
-            'pca_reducer.py'
-        ],
-        'src/clustering': [
-            '__init__.py',
-            'hdbscan_clusterer.py',
-            'cluster_analyzer.py'
-        ],
-        'src/visualisation': [
-            '__init__.py',
-            'dash_app.py',
-            'plotly_components.py',
-            'image_server.py',
-            'evaluation_panel.py',
-            'comparison_view.py'
-        ],
-        'src/evaluation': [
-            '__init__.py',
-            'metrics.py',
-            'cluster_quality.py',
-            'comparison_utils.py'
-        ],
-        'src/utils': [
-            '__init__.py',
-            'file_utils.py',
-            'gpu_utils.py',
-            'metrics.py'
-        ],
-        'notebooks': [
-            '01_data_exploration.ipynb',
-            '02_embedding_experiments.ipynb',
-            '03_reduction_comparison.ipynb',
-            '04_clustering_analysis.ipynb',
-            '05_model_comparison.ipynb',
-            '06_reduction_comparison.ipynb',
-            '07_cluster_evaluation.ipynb'
-        ],
-        'scripts': [
-            'download_dataset.py',
-            'preprocess_images.py',
-            'generate_embeddings.py',
-            'reduce_dimensions.py',
-            'cluster_embeddings.py',
-            'compare_models.py',
-            'compare_reductions.py',
-            'run_visualisation.py'
-        ],
-        'tests': [
-            '__init__.py',
-            'test_preprocessing.py',
-            'test_embeddings.py',
-            'test_reduction.py',
-            'test_clustering.py'
-        ],
-        'reports/figures/model_comparison': ['.gitkeep'],
-        'reports/figures/reduction_comparison': ['.gitkeep'],
-        'reports/figures/cluster_evaluation': ['.gitkeep'],
-        'reports/metrics': ['.gitkeep']
-    }
-    
-    print("Creating project structure for disaster-viz...\n")
-    
-    # Create directories and files
-    for directory, files in structure.items():
-        dir_path = Path(directory)
-        dir_path.mkdir(parents=True, exist_ok=True)
-        print(f"✓ Created directory: {directory}")
-        
-        for file in files:
-            file_path = dir_path / file
-            if not file_path.exists():
-                file_path.touch()
-                print(f"  ✓ Created file: {file}")
-    
-    print("\n" + "="*60)
-    print("Project structure created successfully!")
-    print("="*60)
-    print("\nNext steps:")
-    print("1. Review the structure: tree (Linux/Mac) or dir /s (Windows)")
-    print("2. Install dependencies: pip install -r requirements.txt")
-    print("3. Run verification: python verify_install.py")
-    print("4. Commit to git: git add . && git commit -m 'Initial structure'")
-
-if __name__ == "__main__":
-    create_project_structure()
