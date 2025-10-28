@@ -238,7 +238,7 @@ if __name__ == "__main__":
         print(f"Reserved: {mem_info['reserved_gb']:.2f} GB")
         print(f"Free: {mem_info['free_gb']:.2f} GB")
         print(f"Total: {mem_info['total_gb']:.2f} GB")
-        print(f"Utilization: {mem_info['utilization_percent']:.1f}%")
+        print(f"Utilisation: {mem_info['utilisation_percent']:.1f}%")
         
         print("\n" + "="*60)
         print("RECOMMENDATIONS")
