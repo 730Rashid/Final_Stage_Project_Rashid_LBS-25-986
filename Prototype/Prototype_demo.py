@@ -1,12 +1,3 @@
-"""
-SUPER SIMPLE PROTOTYPE - Disaster Image Visualization
-=====================================================
-Just the basics: Load images → CLIP embeddings → UMAP → Interactive plot
-
-Usage:
-    python simple_prototype.py
-"""
-
 import torch
 import clip
 from PIL import Image
@@ -68,7 +59,7 @@ for img_path, event in zip(images, events):
             embeddings.append(embedding.cpu().numpy().flatten())
             valid_images.append(img_path)
             valid_events.append(event)
-            print(f"   ✓ {img_path.name}")
+            print(f" Working: {img_path.name}")
             
     except Exception as e:
         print(f"  Something went wrong with: {img_path.name}: {e}")
@@ -108,7 +99,7 @@ fig.add_trace(go.Scatter(
 ))
 
 fig.update_layout(
-    title="Disaster Image Embeddings - Simple Prototype",
+    title="Disaster Image Embeddings Simple Prototype",
     xaxis_title="UMAP Dimension 1",
     yaxis_title="UMAP Dimension 2",
     width=1000,
