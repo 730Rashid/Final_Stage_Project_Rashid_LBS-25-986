@@ -40,7 +40,12 @@ print(f"   Events: {set(events)}")
 
 
 print("\n Loading CLIP model...")
-device = "cuda" if torch.cuda.is_available() else "cpu"
+
+if torch.cuda.is_available():
+    device = "cuda"
+else:
+    device = "cpu"
+
 model, preprocess = clip.load("ViT-B/32", device=device)
 print(f"   Using: {device}")
 
@@ -59,7 +64,7 @@ for img_path, event in zip(images, events):
             embeddings.append(embedding.cpu().numpy().flatten())
             valid_images.append(img_path)
             valid_events.append(event)
-            print(f"   ✓ {img_path.name}")
+            print(f"  Working: {img_path.name}")
             
     except Exception as e:
         print(f"  Something went wrong with: {img_path.name}: {e}")
