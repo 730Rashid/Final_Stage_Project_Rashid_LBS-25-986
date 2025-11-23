@@ -12,7 +12,7 @@ CRISISMD_PATH = r"Prototype/data_image"
 NUM_IMAGES = 20  
 
 
-print(" Starting simple prototype...\n")
+print(" Starting simple prototype.. Just wait a few seconds\n")
 
 
 print(" Finding images...")
