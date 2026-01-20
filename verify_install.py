@@ -47,9 +47,7 @@ def check_gpu() -> bool:
     try:
         import torch
         
-        print("\n" + "="*70)
-        print("GPU INFORMATION")
-        print("="*70)
+        print("GPU Information:")
         
         if torch.cuda.is_available():
             print(f"✓ CUDA Available: Yes")
@@ -101,9 +99,7 @@ def check_clip() -> bool:
         import clip
         import torch
         
-        print("\n" + "="*70)
-        print("CLIP MODEL CHECK")
-        print("="*70)
+        print("CLIP Model Check:")
         
         # List available models
         available_models = clip.available_models()
@@ -154,9 +150,7 @@ def print_system_info():
     """Print system information."""
     info = get_system_info()
     
-    print("\n" + "="*70)
-    print("SYSTEM INFORMATION")
-    print("="*70)
+    print("System Information:")
     print(f"Python Version: {info['python_version']}")
     print(f"Platform: {info['platform']}")
     print(f"Processor: {info['processor']}")
@@ -165,9 +159,7 @@ def print_system_info():
 
 def check_package_versions():
     """Check and print versions of key packages."""
-    print("\n" + "="*70)
-    print("PACKAGE VERSIONS")
-    print("="*70)
+    print("Package Versions:")
     
     packages_to_check = [
         ('torch', 'PyTorch'),
@@ -200,10 +192,8 @@ def check_package_versions():
 def main():
     """Main verification function."""
     
-    print("="*70)
-    print("Distaster Visualisation Installation Verification")
-    print("="*70)
-    print("\nChecking critical packages...\n")
+    print("Starting Installation Verification...")
+    print("Checking critical packages:")
     
     # Define packages to check
     packages: List[Tuple[str, str]] = [
@@ -242,19 +232,15 @@ def main():
     check_package_versions()
     
     # Final summary
-    print("\n" + "="*70)
-    print("Verification Summary")
-    print("="*70)
+    print("Verification Summary:")
     print(f"Packages checked: {len(results)}")
     print(f"Successfully installed: {sum(results)}/{len(results)}")
     print(f"GPU available: {'Yes' if gpu_available else 'No (CPU only)'}")
     print(f"CLIP working: {'Yes' if clip_works else 'No'}")
     
     # Overall status
-    print("\n" + "="*70)
     if all(results) and clip_works:
         print("All packages installed successfully!")
-        print("="*70)
         print("\nYou're ready to proceed to Phase 2!")
         print("\nNext steps:")
         print("1. Test configuration: python -m config.settings")
@@ -263,8 +249,7 @@ def main():
         print("4. Make your first commit: git add . && git commit -m 'Phase 1 complete'")
         return 0
     else:
-        print("Error some files failed to install correctly")
-        print("="*70)
+        print("Error: some files failed to install correctly")
         print("\nPlease check the errors above and:")
         print("1. Make sure you activated your virtual environment")
         print("2. Try: pip install -r requirements.txt")

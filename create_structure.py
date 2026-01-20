@@ -22,10 +22,7 @@ def create_file(path: Path, content: str = ""):
 def create_project_structure():
     """Create the complete project directory structure."""
     
-    print("="*70)
-    print("DISASTER-VISUALISATION PROJECT STRUCTURE SETUP")
-    print("="*70)
-    print()
+    print("Setting up Disaster Visualisation project structure...")
     
     base = Path.cwd()
     
@@ -213,9 +210,7 @@ def create_project_structure():
     for notebook in notebook_files:
         create_file(base / notebook, notebook_template)
     
-    print("\n" + "="*70)
-    print(" Project structure created successfully! ")
-    print("="*70)
+    print("Project structure created successfully!")
     print("\nNext steps:")
     print("1. Copy the config files (settings.py, logging_config.py)")
     print("2. Copy the utility files (file_utils.py, gpu_utils.py)")

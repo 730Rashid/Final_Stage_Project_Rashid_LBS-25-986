@@ -1,8 +1,21 @@
+"""
+Logging Configuration Module.
+
+Provides utility functions for setting up logging throughout the project.
+Supports both console and file logging, with special handling for tqdm
+progress bars to avoid display issues.
+
+Author: Rashid
+Supervisor: XinHui Ma
+Project: Visualising Natural Disaster Image Embeddings
+"""
+
 import logging
 import sys
 from pathlib import Path
 from typing import Optional
 from config.settings import config
+
 
 def setup_logger(
     name: str,
@@ -14,15 +27,15 @@ def setup_logger(
     Set up a logger with both file and console handlers.
 
     Args:
-        name (str): The name of the logger.
-        log_file (Optional[Path]): The file path to write logs to. If None, only console logging is used.
-        level (int): The logging level (e.g., logging.INFO, logging.DEBUG).
-        format_string (Optional[str]): A custom format string for log messages.
+        name: The name of the logger.
+        log_file: The file path to write logs to. If None, only console
+                  logging is used.
+        level: The logging level (e.g. logging.INFO, logging.DEBUG).
+        format_string: A custom format string for log messages.
 
     Returns:
-        logging.Logger: A configured logger instance.
+        A configured logger instance.
     """
-    # Get the logger instance
     logger = logging.getLogger(name)
     logger.setLevel(level)
 
@@ -32,7 +45,7 @@ def setup_logger(
 
     # Use a default format string if none is provided
     if format_string is None:
-        format_string = "% (asctime)s - %(name)s - %(levelname)s - %(message)s"
+        format_string = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     
     formatter = logging.Formatter(format_string, datefmt="%Y-%m-%d %H:%M:%S")
 
@@ -44,7 +57,7 @@ def setup_logger(
 
     # Add a file handler if a log file is specified
     if log_file is not None:
-        log_file.parent.mkdir(parents=True, exist_ok=True)  # Ensure log directory exists
+        log_file.parent.mkdir(parents=True, exist_ok=True)
         file_handler = logging.FileHandler(log_file)
         file_handler.setLevel(level)
         file_handler.setFormatter(formatter)
@@ -55,13 +68,16 @@ def setup_logger(
 
 def get_logger(name: str) -> logging.Logger:
     """
-    Retrieves a logger instance with predefined settings from the global config.
+    Retrieve a logger instance with predefined settings from the config.
+
+    This is the main function to use when you need a logger in any module.
+    It uses the settings defined in config/settings.py.
 
     Args:
-        name (str): The name for the logger, typically the module's __name__.
+        name: The name for the logger, typically the module's __name__.
 
     Returns:
-        logging.Logger: A configured logger instance.
+        A configured logger instance.
     """
     return setup_logger(
         name=name,
@@ -73,14 +89,19 @@ def get_logger(name: str) -> logging.Logger:
 
 class TqdmLoggingHandler(logging.Handler):
     """
-    A custom logging handler that integrates with the tqdm progress bar library.
-    This handler prevents log messages from disrupting the visual display of tqdm bars.
+    A custom logging handler that works with tqdm progress bars.
+    
+    When using tqdm for progress indication, standard logging can
+    disrupt the progress bar display. This handler uses tqdm.write()
+    to output log messages without interfering with progress bars.
     """
+    
     def emit(self, record):
         """
-        Formats and writes the log record.
-        This method is overridden to ensure that log messages are written to the console
-        without interfering with the tqdm progress bar.
+        Format and write the log record.
+        
+        Uses tqdm.write() to ensure the message does not interfere
+        with any active progress bars.
         """
         try:
             msg = self.format(record)
@@ -95,14 +116,17 @@ class TqdmLoggingHandler(logging.Handler):
 
 def setup_tqdm_logger(name: str, level: int = logging.INFO) -> logging.Logger:
     """
-    Sets up a logger that is compatible with tqdm progress bars.
+    Set up a logger that is compatible with tqdm progress bars.
+
+    Use this instead of get_logger() when your code uses tqdm
+    progress bars extensively.
 
     Args:
-        name (str): The name of the logger.
-        level (int): The logging level.
+        name: The name of the logger.
+        level: The logging level.
 
     Returns:
-        logging.Logger: A configured logger instance compatible with tqdm.
+        A configured logger instance compatible with tqdm.
     """
     logger = logging.getLogger(name)
     logger.setLevel(level)
@@ -116,7 +140,6 @@ def setup_tqdm_logger(name: str, level: int = logging.INFO) -> logging.Logger:
         datefmt="%Y-%m-%d %H:%M:%S"
     )
 
-    # Use the custom TqdmLoggingHandler
     handler = TqdmLoggingHandler()
     handler.setFormatter(formatter)
     logger.addHandler(handler)
@@ -124,19 +147,16 @@ def setup_tqdm_logger(name: str, level: int = logging.INFO) -> logging.Logger:
     return logger
 
 
-# --- Example Usage ---
 if __name__ == "__main__":
-    # This block demonstrates how to use the get_logger function.
-    # It will only run when the script is executed directly.
+    # Demonstration of the logging module
     
-    # Get a logger for this module
     logger = get_logger(__name__)
     
-    # Log messages at different severity levels
     logger.debug("This is a debug message for detailed diagnostics.")
     logger.info("This is an informational message about normal operation.")
     logger.warning("This is a warning message about a potential issue.")
     logger.error("This is an error message about a failure.")
     logger.critical("This is a critical message about a severe failure.")
     
-    print(f"\nLog file created at: {config.LOG_FILE}")
+    print("")
+    print("Log file created at: {}".format(config.LOG_FILE))
