@@ -7,11 +7,8 @@ from PIL import Image
 import random
 import pandas as pd
 
-
 CRISISMD_PATH = r"Prototype/data_image" 
-MAX_IMAGES_TO_LOAD = 40  # Fewer images = cleaner screenshot
-
-
+MAX_IMAGES_TO_LOAD = 40  
 
 def load_data_simple(path_str):
     data_path = Path(path_str)
@@ -49,8 +46,6 @@ def get_thumbnail(path):
             return f"data:image/jpeg;base64,{b64}"
     except: return None
 
-
-
 df = load_data_simple(CRISISMD_PATH)
 categories = sorted(df['category'].unique()) if not df.empty else []
 
@@ -58,7 +53,7 @@ app = dash.Dash(__name__, title="Crisis App")
 
 app.layout = html.Div([
 
-    # --- TOP BAR (Fixed Header) ---
+    # TOP BAR (Fixed Header)
     html.Div([
         html.H2("prototype for 25/11/2025", style={'margin': '0', 'color': 'white', 'fontSize': '24px', 'fontWeight': '600'}),
         html.Div([
@@ -77,7 +72,7 @@ app.layout = html.Div([
         'padding': '0 20px', 'zIndex': '1000', 'boxShadow': '0 2px 10px rgba(0,0,0,0.2)'
     }),
 
-    # --- MAIN GRID ---
+    # MAIN GRID
     html.Div(id='grid-container', style={
         'marginTop': '90px', # Push down below fixed header
         'padding': '20px',
@@ -89,9 +84,7 @@ app.layout = html.Div([
 
 ], style={'fontFamily': '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif', 'backgroundColor': '#f4f6f7', 'minHeight': '100vh'})
 
-# ============================================================================
-# 🔌 LOGIC
-# ============================================================================
+# LOGIC
 
 @app.callback(
     Output('grid-container', 'children'),
