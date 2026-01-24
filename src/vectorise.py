@@ -291,14 +291,16 @@ def save_results(embeddings, paths, corrupt_files, output_dir):
     }
     
     metadata_file = output_path / "metadata.json"
+    
     with open(metadata_file, "w") as f:
         json.dump(metadata, f, indent=2)
+
     print("  Saved metadata to: {}".format(metadata_file))
     
     print("")
     print("Pipeline Complete. Total vectors: {:,}".format(len(embeddings)))
     print("")
-    print("  Next steps:")
+    print("  Next steps we need to before we run the actualt thing:")
     print("  1. Run UMAP dimensionality reduction")
     print("  2. Launch the Dash visualisation frontend")
     print("")
