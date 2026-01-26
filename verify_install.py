@@ -126,6 +126,51 @@ def check_clip() -> bool:
         return False
 
 
+def check_umap() -> bool:
+    """
+    Verify UMAP installation with a functional test.
+    
+    Returns:
+        True if UMAP works correctly, False otherwise
+    """
+    try:
+        import umap
+        import numpy as np
+        
+        print("UMAP Check:")
+        print(f"  UMAP version: {umap.__version__}")
+        
+        # Run a small test reduction
+        print("  Running test reduction (50 samples, 512-D -> 2-D)...")
+        test_data = np.random.randn(50, 512).astype(np.float32)
+        
+        reducer = umap.UMAP(
+            n_neighbors=5,
+            min_dist=0.1,
+            n_components=2,
+            metric="cosine",
+            random_state=42,
+            verbose=False
+        )
+        
+        result = reducer.fit_transform(test_data)
+        
+        if result.shape == (50, 2):
+            print("  ✓ UMAP functional test passed")
+            return True
+        else:
+            print(f"  ✗ Unexpected output shape: {result.shape}")
+            return False
+            
+    except ImportError:
+        print("\n UMAP not installed")
+        print("  Install with: pip install umap-learn")
+        return False
+    except Exception as e:
+        print(f"\n UMAP check failed: {e}")
+        return False
+
+
 def get_system_info() -> dict:
     """
     Get system information.
@@ -225,6 +270,9 @@ def main():
     # Check CLIP specifically
     clip_works = check_clip()
     
+    # Check UMAP with functional test
+    umap_works = check_umap()
+    
     # Print system info
     print_system_info()
     
@@ -237,9 +285,10 @@ def main():
     print(f"Successfully installed: {sum(results)}/{len(results)}")
     print(f"GPU available: {'Yes' if gpu_available else 'No (CPU only)'}")
     print(f"CLIP working: {'Yes' if clip_works else 'No'}")
+    print(f"UMAP working: {'Yes' if umap_works else 'No'}")
     
     # Overall status
-    if all(results) and clip_works:
+    if all(results) and clip_works and umap_works:
         print("All packages installed successfully!")
         print("\nYou're ready to proceed to Phase 2!")
         print("\nNext steps:")
