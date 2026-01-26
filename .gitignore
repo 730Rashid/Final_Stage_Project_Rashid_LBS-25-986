@@ -54,6 +54,11 @@ data/visualisation/*
 !data/embeddings/.gitkeep
 !data/visualisation/.gitkeep
 
+# CrisisMMD dataset (18k images - never commit)
+CrisisMMD_v2.0/
+data/raw/CrisisMMD_v2.0/
+
+
 # Keep metadata and small files
 !data/metadata/*.csv
 !data/metadata/*.json

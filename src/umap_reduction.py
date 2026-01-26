@@ -101,11 +101,26 @@ def save_results(coords, filenames):
     """Save the 2D coordinates to disk."""
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     
-    # Save coordinates
+    # Save coordinates as numpy array
     coords_path = OUTPUT_DIR / "umap_coords.npy"
     np.save(coords_path, coords)
     print("Saved coordinates to: {}".format(coords_path))
     print("Shape: {}".format(coords.shape))
+    
+    # Save as JSON for the demo app (x, y, path format)
+    umap_data = []
+    for i, (x, y) in enumerate(coords):
+        entry = {
+            "x": float(x),
+            "y": float(y),
+            "path": filenames[i] if filenames else str(i)
+        }
+        umap_data.append(entry)
+    
+    json_path = OUTPUT_DIR / "umap_data.json"
+    with open(json_path, "w") as f:
+        json.dump(umap_data, f, indent=2)
+    print("Saved JSON data to: {}".format(json_path))
     
     # Save metadata
     metadata = {
@@ -128,6 +143,7 @@ def save_results(coords, filenames):
         with open(filenames_path, "w") as f:
             json.dump(filenames, f, indent=2)
         print("Copied filenames to: {}".format(filenames_path))
+
 
 
 def main():
