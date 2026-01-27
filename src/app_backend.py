@@ -112,8 +112,13 @@ class SemanticSearchEngine:
         with torch.no_grad():
             text_features = self.model.get_text_features(**inputs)
         
+        # Handle both old and new transformers API
+        if hasattr(text_features, 'last_hidden_state'):
+            # Newer API returns object with pooler_output
+            text_features = text_features.pooler_output
+        
         # Normalise for cosine similarity
-        text_features = text_features / text_features.norm(p=2, dim=-1, keepdim=True)
+        text_features = text_features / torch.norm(text_features, p=2, dim=-1, keepdim=True)
         
         return text_features.cpu().numpy().flatten()
     
