@@ -27,3 +27,4 @@ tqdm==4.67.1
 typing_extensions==4.15.0
 umap-learn==0.5.9.post2
 wcwidth==0.2.14
+python-pptx==1.0.2
