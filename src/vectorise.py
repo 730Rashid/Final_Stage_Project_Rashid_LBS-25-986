@@ -1,8 +1,8 @@
 """
-Vectorisation Pipeline for CrisisMMD Dataset (Lightweight Version).
+Vectorisation Pipeline for CrisisMMD Dataset (Hugging Face Version).
 
-This script generates 512-dimensional CLIP embeddings for disaster imagery.
-Uses sentence-transformers for lower memory footprint.
+This script generates 512-dimensional CLIP embeddings using the native
+Transformers library to ensure compatibility with the production app.
 
 Author: Rashid
 Supervisor: XinHui Ma
@@ -12,37 +12,36 @@ Project: Visualising Natural Disaster Image Embeddings
 import os
 import sys
 import numpy as np
+import torch
 from PIL import Image
 from tqdm import tqdm
 import json
 from pathlib import Path
 from datetime import datetime
-
+from transformers import CLIPProcessor, CLIPModel
 
 # Add project root to path
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-
 # Configuration
 DATASET_PATH = PROJECT_ROOT / "data" / "processed" / "clean_data"
 OUTPUT_DIR = PROJECT_ROOT / "data" / "embeddings"
-BATCH_SIZE = 16
+BATCH_SIZE = 32  # Increased to 32 for GPU efficiency
 
 
 def load_model():
-    """Load CLIP model using sentence-transformers (lighter memory footprint)."""
+    """Load CLIP model using Hugging Face Transformers."""
     print("Step 1: Loading CLIP Model...")
     
-    from sentence_transformers import SentenceTransformer
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"  Inference Device: {device}")
     
-    print("  Using sentence-transformers (memory-efficient)")
-    print("  Downloading clip-ViT-B-32...")
-    
-    model = SentenceTransformer("clip-ViT-B-32")
+    model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32").to(device)
+    processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
     
     print("  Model loaded successfully")
-    return model
+    return model, processor, device
 
 
 def find_images(root_dir):
@@ -57,14 +56,14 @@ def find_images(root_dir):
             if Path(file).suffix.lower() in extensions:
                 image_paths.append(os.path.join(root, file))
     
-    print("  Found {} images".format(len(image_paths)))
+    print(f"  Found {len(image_paths)} images")
     return image_paths
 
 
-def process_images(model, image_paths):
+def process_images(model, processor, device, image_paths):
     """Generate embeddings for all images."""
     print("Step 3: Generating Embeddings...")
-    print("  Batch size: {}".format(BATCH_SIZE))
+    print(f"  Batch size: {BATCH_SIZE}")
     
     embeddings = []
     valid_paths = []
@@ -75,6 +74,7 @@ def process_images(model, image_paths):
         batch_images = []
         batch_valid_paths = []
         
+        # 1. Load Images
         for path in batch_paths:
             try:
                 img = Image.open(path).convert("RGB")
@@ -83,23 +83,33 @@ def process_images(model, image_paths):
             except Exception as e:
                 corrupt_files.append((path, str(e)))
         
-        if batch_images:
-            try:
-                batch_embeddings = model.encode(batch_images, convert_to_numpy=True)
-                embeddings.append(batch_embeddings)
-                valid_paths.extend(batch_valid_paths)
-            except Exception as e:
-                for path in batch_valid_paths:
-                    corrupt_files.append((path, str(e)))
+        if not batch_images:
+            continue
+            
+        # 2. Process via CLIP
+        try:
+            inputs = processor(images=batch_images, return_tensors="pt", padding=True).to(device)
+            
+            with torch.no_grad():
+                outputs = model.get_image_features(**inputs)
+            
+            # Normalise (Critical for Cosine Similarity)
+            outputs = outputs / outputs.norm(p=2, dim=-1, keepdim=True)
+            
+            embeddings.append(outputs.cpu().numpy())
+            valid_paths.extend(batch_valid_paths)
+            
+        except Exception as e:
+            print(f"  Batch Error: {e}")
+            for path in batch_valid_paths:
+                corrupt_files.append((path, str(e)))
     
     if embeddings:
         embeddings = np.vstack(embeddings)
     else:
         embeddings = np.array([])
     
-    print("  Generated {} embeddings".format(len(embeddings)))
-    print("  Skipped {} corrupt files".format(len(corrupt_files)))
-    
+    print(f"  Generated {len(embeddings)} embeddings")
     return embeddings, valid_paths, corrupt_files
 
 
@@ -109,57 +119,28 @@ def save_results(embeddings, paths, corrupt_files):
     
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     
-    # Save embeddings
     np.save(OUTPUT_DIR / "embeddings.npy", embeddings)
-    print("  Saved embeddings.npy ({} x {})".format(*embeddings.shape))
+    print(f"  Saved embeddings.npy ({embeddings.shape})")
     
-    # Save filenames
     with open(OUTPUT_DIR / "filenames.json", "w") as f:
         json.dump(paths, f, indent=2)
     print("  Saved filenames.json")
-    
-    # Save metadata
-    metadata = {
-        "generated_at": datetime.now().isoformat(),
-        "n_images": len(paths),
-        "embedding_dim": embeddings.shape[1] if len(embeddings) > 0 else 0,
-        "model": "clip-ViT-B-32",
-        "batch_size": BATCH_SIZE
-    }
-    with open(OUTPUT_DIR / "metadata.json", "w") as f:
-        json.dump(metadata, f, indent=2)
-    
-    # Save corrupt files log
-    if corrupt_files:
-        with open(OUTPUT_DIR / "corrupt_files.log", "w") as f:
-            for path, error in corrupt_files:
-                f.write("{}: {}\n".format(path, error))
 
 
 def main():
-    """Main entry point."""
-    print("CrisisMMD Embedding Generator (Lightweight)")
-    print("Started: {}".format(datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
-    print("")
+    print("CrisisMMD Embedding Generator (Transformers Version)")
     
     if not DATASET_PATH.exists():
-        print("ERROR: Dataset not found at {}".format(DATASET_PATH))
-        print("Run clean_data.py first")
+        print(f"ERROR: Dataset not found at {DATASET_PATH}")
         sys.exit(1)
     
-    model = load_model()
+    model, processor, device = load_model()
     image_paths = find_images(DATASET_PATH)
     
-    if not image_paths:
-        print("ERROR: No images found")
-        sys.exit(1)
-    
-    embeddings, valid_paths, corrupt_files = process_images(model, image_paths)
+    embeddings, valid_paths, corrupt_files = process_images(model, processor, device, image_paths)
     save_results(embeddings, valid_paths, corrupt_files)
     
-    print("")
-    print("Pipeline complete!")
-    print("Next: python -m src.umap_reduction")
+    print("\nPipeline complete! Now run UMAP reduction.")
 
 
 if __name__ == "__main__":
