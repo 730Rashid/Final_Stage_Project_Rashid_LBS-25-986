@@ -140,8 +140,10 @@ def save_results(coords, filenames):
     # Copy filenames for convenience
     if filenames:
         filenames_path = OUTPUT_DIR / "filenames.json"
+
         with open(filenames_path, "w") as f:
             json.dump(filenames, f, indent=2)
+
         print("Copied filenames to: {}".format(filenames_path))
 
 
@@ -163,7 +165,7 @@ def main():
     save_results(coords, filenames)
     
     print("Pipeline complete.")
-    print("Next step: Use the coordinates in your Dash visualisation")
+    print("Use the coordinates in your Dash visualisation")
 
 
 if __name__ == "__main__":
