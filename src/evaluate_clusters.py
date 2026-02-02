@@ -51,7 +51,7 @@ def parse_event_from_path(filepath: str) -> str:
         filepath: Full path to the image file.
         
     Returns:
-        Human-readable event name (e.g., 'California Wildfires').
+        Human-readable event name (Example: 'California Wildfires').
     """
     path_str = str(filepath).replace("\\", "/").lower()
     
@@ -88,7 +88,7 @@ def load_data():
     
     # Load filenames and extract event labels
     if not FILENAMES_PATH.exists():
-        print("ERROR: Filenames not found at {}".format(FILENAMES_PATH))
+        print("Error: Filenames not found at {}".format(FILENAMES_PATH))
         return None, None
     
     with open(FILENAMES_PATH, "r") as f:
@@ -126,17 +126,22 @@ def calculate_metrics(coords: np.ndarray, labels: list) -> dict:
     # Interpretation thresholds
     if silhouette > 0.5:
         silhouette_quality = "Strong separation"
+
     elif silhouette > 0.25:
         silhouette_quality = "Moderate separation"
+    
     elif silhouette > 0:
         silhouette_quality = "Weak separation"
+    
     else:
         silhouette_quality = "Poor (overlapping clusters)"
     
     if davies_bouldin < 1.0:
         db_quality = "Excellent clustering"
+    
     elif davies_bouldin < 2.0:
         db_quality = "Good clustering"
+    
     else:
         db_quality = "Poor clustering"
     
@@ -184,22 +189,23 @@ def generate_report(metrics: dict, events: list, classes: np.ndarray):
     json_path = OUTPUT_DIR / "cluster_evaluation.json"
     with open(json_path, "w") as f:
         json.dump(report, f, indent=2)
+    
     print("  Saved JSON report: {}".format(json_path))
     
     # Print summary
     print("\n" + "=" * 60)
-    print("CLUSTER EVALUATION RESULTS")
+    print("Cluster Evaluation Result")
     print("=" * 60)
-    print("Dataset: CrisisMMD ({:,} images)".format(len(events)))
+    print("Dataset: ({:,} images)".format(len(events)))
     print("Number of Event Categories: {}".format(len(classes)))
     print("")
     print("Class Distribution:")
     for event, count in sorted(class_counts.items(), key=lambda x: -x[1]):
         pct = 100 * count / len(events)
         print("  {:25s} {:5,} ({:5.1f}%)".format(event, count, pct))
+
     print("")
     print("Clustering Metrics:")
-    print("-" * 60)
     
     for name, data in metrics.items():
         print("  {}".format(name.replace("_", " ").title()))
@@ -208,7 +214,6 @@ def generate_report(metrics: dict, events: list, classes: np.ndarray):
         print("    Interpretation: {}".format(data["interpretation"]))
         print("")
     
-    print("=" * 60)
     print("Report saved to: {}".format(json_path))
     
     return report
@@ -239,7 +244,6 @@ def main():
     generate_report(metrics, events, classes)
     
     print("\nEvaluation complete.")
-    print("Use these metrics in your dissertation to justify UMAP's effectiveness.")
 
 
 if __name__ == "__main__":

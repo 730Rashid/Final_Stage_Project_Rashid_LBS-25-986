@@ -28,7 +28,7 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 
 # Configuration
-# Input folder containing raw CrisisMMD images
+# Input folder containing raw CrisisMMD images, some of the images may have noise and some unrelated images that has nothing to do with Natural Disasters.
 RAW_DATA_PATH = PROJECT_ROOT / "data" / "raw" / "CrisisMMD_v2.0" / "data_image"
 
 # Output folder for cleaned images
@@ -92,8 +92,8 @@ def is_valid_image(file_path):
     except Exception as e:
         return False, "Corrupt file ({})".format(type(e).__name__)
     
-    # Check resolution and aspect ratio
-    # We need to reopen the file because verify() closes it
+    # Check resolution and aspect ratio of the image and try to make it compatiable for parsing.
+
     try:
         with Image.open(file_path) as img:
             width, height = img.size
@@ -102,6 +102,7 @@ def is_valid_image(file_path):
                 return False, "Resolution too low ({}x{})".format(width, height)
             
             aspect_ratio = width / height
+
             if aspect_ratio > MAX_ASPECT_RATIO:
                 return False, "Too wide (ratio: {:.1f})".format(aspect_ratio)
             if aspect_ratio < MIN_ASPECT_RATIO:
@@ -121,26 +122,29 @@ def clean_dataset():
     and copies valid images to the clean data folder. The original folder
     structure is preserved so that event categories remain intact.
     """
-    print("Starting CrisisMMD Data Cleaning Pipeline...")
-    print("Timestamp: {}".format(datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+    print("Starting Data Cleaning Pipeline...")
+    print("Timestamp: {}".format(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))) # We check the time to make sure it is runnning in real time.
     
     # Check input folder exists
     if not RAW_DATA_PATH.exists():
-        print("ERROR: Raw data folder does not exist")
-        print("  Path: {}".format(RAW_DATA_PATH))
-        print("  Please download the CrisisMMD dataset first")
+        print("Error: Raw data folder does not exist")
+        print("Path: {}".format(RAW_DATA_PATH))
+        print("Please download the dataset first")
+        
         return
     
     setup_folders()
     
-    print("Step 1: Scanning for images...")
+    print("Scanning for images...")
     
-    # Find all image files
+    # Find all image files from all formats.
     image_files = []
+    
     for ext in ["*.jpg", "*.jpeg", "*.png", "*.JPG", "*.JPEG", "*.PNG"]:
         image_files.extend(RAW_DATA_PATH.rglob(ext))
     
     total_images = len(image_files)
+
     print("  Found {:,} images to process".format(total_images))
     print("")
     
@@ -181,10 +185,12 @@ def clean_dataset():
                 shutil.copy2(src_path, dest_path)
                 stats["valid"] += 1
                 stats["by_category"][category]["valid"] += 1
+
             except Exception as e:
                 stats["skipped"]["Copy error"] += 1
                 stats["by_category"][category]["skipped"] += 1
                 errors_log.append("{}\tCopy error: {}".format(src_path, e))
+        
         else:
             stats["skipped"][reason] += 1
             stats["by_category"][category]["skipped"] += 1
@@ -193,14 +199,14 @@ def clean_dataset():
     print("")
     
     # Print the report
-    print("Step 3: Generating cleaning report...")
+    print("Generating cleaning report...")
     
     total_skipped = sum(stats["skipped"].values())
     
     print("")
     print("Summary:")
-    print("  Total processed:  {:,}".format(total_images))
-    print("  Valid images:     {:,} ({:.1f}%)".format(
+    print("Total processed:  {:,}".format(total_images))
+    print("Valid images:     {:,} ({:.1f}%)".format(
         stats["valid"], 
         100 * stats["valid"] / total_images
     ))
@@ -264,7 +270,7 @@ def clean_dataset():
     print("")
     print("  Next step:")
     print("  Update DATASET_PATH in vectorise.py to point to the clean_data")
-    print("  folder, then run: python src/vectorise.py")
+    print("  folder, then run: python src/vectorise.py in the terminal")
     print("")
 
 
