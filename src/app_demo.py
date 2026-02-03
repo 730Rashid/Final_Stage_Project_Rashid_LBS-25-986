@@ -14,9 +14,12 @@ from dash import dcc, html, Input, Output, State, ctx
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 import pandas as pd
+import numpy as np
+import cv2
+import io
 import os
 from pathlib import Path
-from flask import send_from_directory
+from flask import send_from_directory, request, Response
 
 # Import backend functions
 from app_backend import (
@@ -54,11 +57,83 @@ server = app.server
 
 @server.route("/images/<path:p>")
 def serve_image(p):
-    """Serve images from the data folder."""
+    """Serve images from the data folder, with optional privacy blur."""
     path = IMAGE_FOLDER / p
-    if path.exists():
-        return send_from_directory(str(path.parent), path.name)
-    return "Not found", 404
+    if not path.exists():
+        return "Not found", 404
+    
+    # Check if privacy mode is enabled
+    privacy_mode = request.args.get('privacy', 'false').lower() == 'true'
+    
+    if privacy_mode:
+        # Load image with OpenCV
+        img = cv2.imread(str(path))
+        if img is None:
+            return send_from_directory(str(path.parent), path.name)
+        
+        # Convert to grayscale for face detection
+        grey = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        
+        # Load multiple Haar Cascades for better detection
+        frontal_cascade = cv2.CascadeClassifier(
+            cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+        )
+        profile_cascade = cv2.CascadeClassifier(
+            cv2.data.haarcascades + 'haarcascade_profileface.xml'
+        )
+        
+        all_faces = []
+        
+        # Detect frontal faces (more aggressive params)
+        frontal_faces = frontal_cascade.detectMultiScale(
+            grey,
+            scaleFactor=1.05,  # Finer scale for better detection
+            minNeighbors=3,    # Lower threshold = more detections
+            minSize=(20, 20)
+        )
+        all_faces.extend(frontal_faces)
+        
+        # Detect profile faces (left-facing)
+        profile_faces = profile_cascade.detectMultiScale(
+            grey,
+            scaleFactor=1.05,
+            minNeighbors=3,
+            minSize=(20, 20)
+        )
+        all_faces.extend(profile_faces)
+        
+        # Detect profile faces (right-facing) by flipping image
+        flipped = cv2.flip(grey, 1)
+        flipped_profiles = profile_cascade.detectMultiScale(
+            flipped,
+            scaleFactor=1.05,
+            minNeighbors=3,
+            minSize=(20, 20)
+        )
+        # Convert flipped coordinates back
+        img_width = img.shape[1]
+        for (x, y, w, h) in flipped_profiles:
+            all_faces.append((img_width - x - w, y, w, h))
+        
+        # Blur each detected face
+        for (x, y, w, h) in all_faces:
+            # Add padding to ensure full face coverage
+            pad = int(w * 0.1)
+            x1 = max(0, x - pad)
+            y1 = max(0, y - pad)
+            x2 = min(img.shape[1], x + w + pad)
+            y2 = min(img.shape[0], y + h + pad)
+            
+            face_region = img[y1:y2, x1:x2]
+            blurred_face = cv2.GaussianBlur(face_region, (99, 99), 30)
+            img[y1:y2, x1:x2] = blurred_face
+        
+        # Encode to JPEG and return
+        _, buffer = cv2.imencode('.jpg', img, [cv2.IMWRITE_JPEG_QUALITY, 90])
+        return Response(buffer.tobytes(), mimetype='image/jpeg')
+    
+    # Standard serving without privacy
+    return send_from_directory(str(path.parent), path.name)
 
 
 # Component Builders
@@ -263,6 +338,13 @@ def explorer_page():
             ], align="start", className="g-4")
         ], className="paper-card mb-4 py-3"),
         
+        # Privacy Notice (Always On)
+        html.Div([
+            html.I(className="bi bi-shield-check me-2"),
+            html.Span("Privacy", className="fw-bold me-2"),
+            html.Span("Faces are automatically blurred to protect victim's privacy.", className="text-muted")
+        ], className="alert-privacy mb-4"),
+        
         dcc.Store(id="clicked-point-store", data=None),
         
         # Main Content
@@ -346,11 +428,14 @@ def handle_click(click_data, clear_clicks):
     return None
 
 
-def build_image_card(row, score, score_label="Match"):
+def build_image_card(row, score, score_label="Match", privacy_mode=False):
     """Build an image card with classification badges."""
     try:
         rel_path = Path(row["path"]).relative_to(IMAGE_FOLDER)
-        img_url = "/images/{}".format(str(rel_path).replace(os.sep, "/"))
+        base_url = "/images/{}".format(str(rel_path).replace(os.sep, "/"))
+        
+        # Add privacy suffix if enabled
+        img_url = "{}?privacy=true".format(base_url) if privacy_mode else base_url
         
         image_idx = row["original_idx"]
         classifications = classify_image(image_idx, threshold=0.22)
@@ -392,6 +477,8 @@ def build_image_card(row, score, score_label="Match"):
 )
 def update_view(n_clicks, n_submit, selected_event, clicked_index, query):
     """Update the visualisation based on user interaction."""
+    # Privacy is always enabled
+    privacy_mode = True
     fig = go.Figure()
     images = []
     status = "Ready"
@@ -467,7 +554,7 @@ def update_view(n_clicks, n_submit, selected_event, clicked_index, query):
         gallery_title = "Visually Similar Images"
         
         for _, row in match_df.head(10).iterrows():
-            card = build_image_card(row, row["score"], "Similarity")
+            card = build_image_card(row, row["score"], "Similarity", privacy_mode)
             if card:
                 images.append(card)
 
@@ -498,7 +585,7 @@ def update_view(n_clicks, n_submit, selected_event, clicked_index, query):
             gallery_title = "Search Results: {}".format(query)
             
             for _, row in strong_matches.head(10).iterrows():
-                card = build_image_card(row, row["score"], "Match")
+                card = build_image_card(row, row["score"], "Match", privacy_mode)
                 if card:
                     images.append(card)
         else:
@@ -522,17 +609,30 @@ def update_view(n_clicks, n_submit, selected_event, clicked_index, query):
     
     final_grid = []
     if images and isinstance(images[0], html.Div):
-         final_grid = images
+        final_grid = images
     else:
         final_grid = [dbc.Col(img, width=12) for img in images]
 
     image_grid = dbc.Row(final_grid, className="g-3")
     
+    # Show sample images if no search/click is active
     if not images and not query and clicked_index is None:
-         image_grid = html.Div([
-             html.P("Select an event or click a data point on the projection to view details.", 
-                    className="text-muted small text-center mt-5")
-         ])
+        gallery_title = "Sample Images"
+        status = "Click a point or search to explore. Showing samples from each event."
+        
+        # Get one sample from each event category
+        for event in UNIQUE_EVENTS:
+            event_images = filtered_df[filtered_df["event"] == event]
+            
+            if len(event_images) > 0:
+                sample_row = event_images.sample(1).iloc[0]
+                card = build_image_card(sample_row, 1.0, "Sample", privacy_mode)
+                
+                if card:
+                    images.append(card)
+        
+        final_grid = [dbc.Col(img, width=12) for img in images]
+        image_grid = dbc.Row(final_grid, className="g-3")
 
     return fig, image_grid, status, gallery_title
 

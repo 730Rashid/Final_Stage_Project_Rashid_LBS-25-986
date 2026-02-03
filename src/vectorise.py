@@ -128,10 +128,10 @@ def save_results(embeddings, paths, corrupt_files):
 
 
 def main():
-    print("CrisisMMD Embedding Generator (Transformers Version)")
+    print("Embedding Generator using Transformers")
     
     if not DATASET_PATH.exists():
-        print(f"ERROR: Dataset not found at {DATASET_PATH}")
+        print(f"Error: Dataset not found at {DATASET_PATH}")
         sys.exit(1)
     
     model, processor, device = load_model()
