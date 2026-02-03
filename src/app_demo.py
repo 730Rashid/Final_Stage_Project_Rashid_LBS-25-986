@@ -102,7 +102,7 @@ def overview_page():
 
                 html.Div([
                     dbc.Button("View Data Explorer", href="/explorer", className="btn-primary-action me-3"),
-                    dbc.Button("Read Documentation", href="https://github.com/730Rashid", target="_blank", 
+                    dbc.Button("Read Documentation", href="https://github.com/730Rashid/Final_Stage_Project_Rashid_LBS-25-986", target="_blank", 
                                className="btn-academic")
                 ], className="d-flex text-start gap-2")
             ], fluid=True, style={"maxWidth": "1000px"})
@@ -150,22 +150,24 @@ def overview_page():
                     html.Div([
                         html.H3("Abstract", className="mb-3"),
                         html.P([
-                            "In the aftermath of a natural disaster, social media platforms become flooded with ",
-                            "millions of images from affected areas. For humanitarian organisations, this presents ",
-                            "a critical challenge: identifying relevant, actionable images from the deluge. ",
-                            html.Strong("Traditional keyword-based search fails"), " because crisis images often lack ",
-                            "descriptive text, and pre-defined labels cannot anticipate every possible disaster scenario."
+                            "When a natural disaster strikes, social media gets swamped with millions of images ",
+                            "from the affected areas. For humanitarian organisations, this creates a real problem: ",
+                            "how do you find the relevant, useful images amongst all that chaos? ",
+                            html.Strong("Traditional keyword searches just don't work"), " because crisis images rarely ",
+                            "have descriptive text, and you can't predict in advance what labels you'll need for ",
+                            "every possible disaster scenario."
                         ]),
                         html.P([
-                            "This project demonstrates a ", html.Strong("zero-shot semantic search"), " approach using ",
-                            "OpenAI's CLIP model. By encoding images into a shared embedding space with natural language, ",
-                            "we enable responders to query the dataset using plain English—describing ",
-                            html.Em("what they need to see"), " rather than relying on pre-existing tags."
+                            "This project shows how ", html.Strong("zero-shot semantic search"), " using OpenAI's CLIP ",
+                            "model can help. By encoding images into a shared embedding space with natural language, ",
+                            "we let responders search the dataset using plain English. They can simply describe ",
+                            html.Em("what they need to see"), " rather than relying on tags that already exist."
                         ]),
                         html.P([
                             "The visualisation uses ", html.Strong("UMAP dimensionality reduction"), " to project the ",
                             "512-dimensional embedding space into an interactive 2D scatter plot. This reveals the ",
-                            "semantic structure of the dataset, showing how images cluster by content type and disaster event."
+                            "semantic structure of the dataset, showing how images naturally cluster by content type ",
+                            "and disaster event."
                         ])
                     ], className="paper-card")
                 ], md=8),
@@ -200,24 +202,23 @@ def overview_page():
             
             # Footer
             html.Footer([
-                html.Hr(className="my-4"),
+                html.Hr(className="mt-5 mb-4 text-muted opacity-25"),
                 html.Div([
-                    html.P("CrisisMMD Visualisation Tool", className="fw-bold mb-2"),
-                    html.P("Built with CLIP, UMAP, and Dash", className="text-muted small mb-3"),
+                    html.P("CrisisMMD Visualisation Tool", className="fw-bold mb-2", style={"letterSpacing": "0.05em"}),
+                    html.P("Built with CLIP, UMAP, and Dash", className="text-secondary small mb-4"),
                     html.Div([
                         html.A([
                             html.I(className="bi bi-github me-2"),
                             "GitHub"
                         ], href="https://github.com/730Rashid", target="_blank",
-                           className="footer-link me-4"),
+                           className="text-secondary text-decoration-none me-4"),
                         html.A([
                             html.I(className="bi bi-linkedin me-2"),
                             "LinkedIn"
                         ], href="https://www.linkedin.com/in/rashid-pandor-85537b22b/", 
-                           target="_blank", className="footer-link")
-                    ], className="mb-3"),
-                    html.P("© 2026 Rashid Pandor", className="text-muted small mb-0")
-                ], className="text-center py-4")
+                           target="_blank", className="text-secondary text-decoration-none")
+                    ], className="d-flex justify-content-center align-items-center w-100")
+                ], className="d-flex flex-column align-items-center pb-5")
             ])
         ], fluid=True, style={"maxWidth": "1200px"}, className="py-4")
     ])

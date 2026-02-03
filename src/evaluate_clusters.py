@@ -79,8 +79,8 @@ def load_data():
     
     # Load 2D coordinates
     if not UMAP_COORDS_PATH.exists():
-        print("ERROR: UMAP coordinates not found at {}".format(UMAP_COORDS_PATH))
-        print("Run umap_reduction.py first.")
+        print("Error: UMAP coordinates not found at {}".format(UMAP_COORDS_PATH))
+        print("You need to run umap_reduction.py first before this")
         return None, None
     
     coords = np.load(UMAP_COORDS_PATH)
@@ -134,7 +134,7 @@ def calculate_metrics(coords: np.ndarray, labels: list) -> dict:
         silhouette_quality = "Weak separation"
     
     else:
-        silhouette_quality = "Poor (overlapping clusters)"
+        silhouette_quality = "Poor - overlapping clusters"
     
     if davies_bouldin < 1.0:
         db_quality = "Excellent clustering"
@@ -193,9 +193,7 @@ def generate_report(metrics: dict, events: list, classes: np.ndarray):
     print("  Saved JSON report: {}".format(json_path))
     
     # Print summary
-    print("\n" + "=" * 60)
     print("Cluster Evaluation Result")
-    print("=" * 60)
     print("Dataset: ({:,} images)".format(len(events)))
     print("Number of Event Categories: {}".format(len(classes)))
     print("")
@@ -232,7 +230,7 @@ def main():
     
     # Validate data alignment
     if len(coords) != len(events):
-        print("ERROR: Mismatch between coordinates ({}) and labels ({})".format(
+        print("Error: Mismatch between coordinates ({}) and labels ({})".format(
             len(coords), len(events)
         ))
         sys.exit(1)
