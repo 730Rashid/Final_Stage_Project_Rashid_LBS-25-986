@@ -209,13 +209,13 @@ def classify_image(image_index, threshold=0.20):
     return results
 
 
-# Flask App with Bootstrap Theme
+# Flask App
 BOOTSTRAP_ICONS = "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
 ASSETS_PATH = str(PROJECT_ROOT / "assets")
 
 app = dash.Dash(
     __name__,
-    external_stylesheets=[dbc.themes.LITERA, BOOTSTRAP_ICONS],
+    external_stylesheets=[dbc.themes.BOOTSTRAP, BOOTSTRAP_ICONS],
     assets_folder=ASSETS_PATH,
     suppress_callback_exceptions=True
 )
@@ -234,265 +234,175 @@ def serve_image(p):
 # Component Builders
 
 def create_badge(label, confidence):
-    """Create a classification badge."""
-    if confidence >= 0.28:
-        colour = "success"
-    elif confidence >= 0.24:
-        colour = "primary"
-    else:
-        colour = "secondary"
+    """Create a classification badge using Academic colours."""
+    # Confidence dictates the 'strength' of the evidence
     
-    return dbc.Badge(
-        "{} {:.0f}%".format(label, confidence * 100),
-        color=colour,
-        className="me-1 mb-1",
-        style={"fontSize": "10px"}
+    score_pct = confidence * 100
+    
+    badge_class = "badge-academic"
+    if confidence >= 0.28:
+        badge_class += " badge-high"
+    elif confidence >= 0.24:
+        badge_class += " badge-mid"
+
+    # Using standard academic terms
+    return html.Span(
+        "{} ({:.0f}%)".format(label, score_pct),
+        className=badge_class + " me-1 mb-1"
     )
-
-
-def create_stat_card(value, label):
-    """Create a statistic card."""
-    return dbc.Card([
-        dbc.CardBody([
-            html.Div(value, className="stat-value"),
-            html.Div(label, className="stat-label")
-        ], className="text-center")
-    ], className="h-100")
 
 
 # Page Layouts
 
 def overview_page():
-    """Overview landing page - clean and readable."""
+    """Overview landing page - Research Abstract Style."""
     return html.Div([
-        # Hero Section
+        # Hero Wrapper
         html.Div([
             dbc.Container([
-                html.H1("Visualising Natural Disaster Image Embeddings", 
-                        className="hero-title"),
-                html.P("Semantic Search and Visual Clustering for Humanitarian Response",
-                       className="hero-subtitle"),
+                html.Small("HONOURS STAGE PROJECT | 2026", className="hero-supertext"),
+                html.H1("Visualising Natural Disaster Image Embeddings", className="mb-3"),
+                
+                html.P("A Semantic Search and Visual Clustering approach for Humanitarian Response",
+                       className="hero-subtitle mb-4"),
+                
                 html.Div([
-                    dbc.Badge("Honours Stage Project", color="light", 
-                              text_color="dark", className="me-2"),
-                    html.Span("Rashid", className="fw-bold", style={"color": "white"}),
-                    html.Span(" | Supervised by ", style={"opacity": "0.8", "color": "white"}),
-                    html.Span("XinHui Ma", className="fw-bold", style={"color": "white"})
-                ], className="mt-3")
-            ], fluid=True)
-        ], className="hero-section"),
+                    html.Span("Authored by ", className="text-secondary"),
+                    html.Strong("Rashid Pandor", className="text-dark me-3"),
+                    html.Span("Supervised by ", className="text-secondary"),
+                    html.Strong("XinHui Ma", className="text-dark")
+                ], className="mb-4 small"),
+
+                html.Div([
+                    dbc.Button("View Data Explorer", href="/explorer", className="btn-primary-action me-3"),
+                    dbc.Button("Read Documentation", href="https://github.com/730Rashid", target="_blank", 
+                               className="btn-academic")
+                ], className="d-flex text-start gap-2")
+            ], fluid=True, style={"maxWidth": "1000px"})
+        ], className="hero-wrapper"),
         
         dbc.Container([
-            # Stats Row - Compact
+            # Abstract / Stats
             dbc.Row([
                 dbc.Col([
                     html.Div([
-                        html.Div("{:,}".format(len(df)), className="stat-value"),
-                        html.Div("Images", className="stat-label")
-                    ], className="stat-card")
-                ], md=3),
-                dbc.Col([
-                    html.Div([
-                        html.Div(str(len(UNIQUE_EVENTS)), className="stat-value"),
-                        html.Div("Events", className="stat-label")
-                    ], className="stat-card")
-                ], md=3),
-                dbc.Col([
-                    html.Div([
-                        html.Div("512", className="stat-value"),
-                        html.Div("Dimensions", className="stat-label")
-                    ], className="stat-card")
-                ], md=3),
-                dbc.Col([
-                    html.Div([
-                        html.Div(str(len(CLASSIFICATION_LABELS)), className="stat-value"),
-                        html.Div("Labels", className="stat-label")
-                    ], className="stat-card")
-                ], md=3),
-            ], className="mb-5"),
+                        html.H4("Key Metrics", className="paper-title border-bottom pb-2 mb-3"),
+                        dbc.Row([
+                            dbc.Col([
+                                html.Div([
+                                    html.Div("{:,}".format(len(df)), className="stat-value"),
+                                    html.Div("Total Images Processed", className="stat-label")
+                                ], className="stat-box")
+                            ], width=3),
+                            dbc.Col([
+                                html.Div([
+                                    html.Div(str(len(UNIQUE_EVENTS)), className="stat-value"),
+                                    html.Div("Disaster Events", className="stat-label")
+                                ], className="stat-box")
+                            ], width=3),
+                            dbc.Col([
+                                html.Div([
+                                    html.Div("512", className="stat-value"),
+                                    html.Div("Vector Dimensions", className="stat-label")
+                                ], className="stat-box")
+                            ], width=3),
+                        ])
+                    ], className="paper-card h-100")
+                ], md=12, className="mb-4"),
+            ]),
             
-            # Challenge & Solution - Side by Side, No cards
+            # Methodology Section
             dbc.Row([
                 dbc.Col([
                     html.Div([
-                        html.H4("The Challenge", className="mb-3"),
+                        html.H4("Methodology", className="paper-title border-bottom pb-2 mb-3"),
                         html.P([
-                            "In the aftermath of a disaster, social media is flooded with ",
-                            html.Strong("millions of images"),
-                            ". This creates a bottleneck—too much ",
-                            html.Strong("visual noise"),
-                            " for human teams to filter."
+                            html.Strong("1. Data Ingestion: "), 
+                            "The system processes over 17,000 images from the CrisisMMD dataset, covering seven major natural disaster events."
                         ]),
                         html.P([
-                            "Traditional AI relies on pre-trained labels and ",
-                            html.Strong("fails"),
-                            " when encountering new crisis types."
-                        ], className="mb-0")
-                    ], className="info-block challenge")
-                ], md=6),
-                dbc.Col([
-                    html.Div([
-                        html.H4("The Solution", className="mb-3"),
-                        html.P([
-                            "This project uses ",
-                            html.Strong("CLIP"),
-                            " to extract semantic vectors from images, enabling search by ",
-                            html.Strong("natural language"),
-                            " rather than keywords."
+                            html.Strong("2. Vectorisation: "), 
+                            "We utilise the OpenAI CLIP model (ViT-B/32) to generate 512-dimensional semantic embeddings for each image."
                         ]),
                         html.P([
-                            html.Strong("UMAP"),
-                            " projects high-dimensional data to reveal how images cluster naturally."
-                        ], className="mb-0")
-                    ], className="info-block solution")
+                            html.Strong("3. Dimensionality Reduction: "), 
+                            "Uniform Manifold Approximation and Projection (UMAP) reduces these high-dimensional vectors to 2D for visualisation."
+                        ])
+                    ], className="paper-card h-100")
                 ], md=6),
-            ], className="mb-5"),
+                
+                dbc.Col([
+                    html.Div([
+                        html.H4("Capabilities", className="paper-title border-bottom pb-2 mb-3"),
+                        html.Ul([
+                            html.Li("Zero-Shot Classification: Categorising images without explicit training labels."),
+                            html.Li("Semantic Search: Retrieving images using natural language queries (e.g. \"flood water rising\")."),
+                            html.Li("Visual Similarity: Identifying related imagery based on visual content alone.")
+                        ], className="text-secondary small ps-3"),
+                        
+                        dbc.Alert([
+                            html.I(className="bi bi-info-circle me-2"),
+                            "This system is designed to aid humanitarian response by filtering visual noise during crises."
+                        ], color="light", className="mt-4 small")
+                    ], className="paper-card h-100")
+                ], md=6),
+            ], className="g-4 mb-5"),
             
-            # How It Works - Simple row, no card
-            html.H4("How It Works", className="section-header"),
-            dbc.Row([
-                dbc.Col([
-                    html.Div([
-                        html.Div([
-                            html.I(className="bi bi-database fs-4")
-                        ], className="feature-icon feature-icon-blue"),
-                        html.H6("Ingestion", className="fw-semibold"),
-                        html.P("Parse and clean 17,463 crisis images", 
-                               className="text-muted small mb-0")
-                    ], className="feature-block")
-                ], md=3),
-                dbc.Col([
-                    html.Div([
-                        html.Div([
-                            html.I(className="bi bi-cpu fs-4")
-                        ], className="feature-icon feature-icon-green"),
-                        html.H6("Vectorisation", className="fw-semibold"),
-                        html.P("Generate 512-dim embeddings via CLIP", 
-                               className="text-muted small mb-0")
-                    ], className="feature-block")
-                ], md=3),
-                dbc.Col([
-                    html.Div([
-                        html.Div([
-                            html.I(className="bi bi-diagram-3 fs-4")
-                        ], className="feature-icon feature-icon-orange"),
-                        html.H6("Projection", className="fw-semibold"),
-                        html.P("UMAP reduces to 2D for visualisation", 
-                               className="text-muted small mb-0")
-                    ], className="feature-block")
-                ], md=3),
-                dbc.Col([
-                    html.Div([
-                        html.Div([
-                            html.I(className="bi bi-search fs-4")
-                        ], className="feature-icon feature-icon-pink"),
-                        html.H6("Search", className="fw-semibold"),
-                        html.P("Query in plain English, get results", 
-                               className="text-muted small mb-0")
-                    ], className="feature-block")
-                ], md=3),
-            ], className="mb-5"),
-            
-            # Zero-Shot Feature - Simple info block
+            # Footer
             html.Div([
-                html.H4("Zero-Shot Semantic Search", className="mb-3"),
-                html.P([
-                    "You can search for complex concepts like ",
-                    html.Em("\"people sleeping in tents\""),
-                    " or ",
-                    html.Em("\"damaged bridge over water\""),
-                    "—the system finds matching images ",
-                    html.Strong("mathematically"),
-                    ", without manual tagging."
-                ]),
-                html.Div([
-                    create_badge(LABEL_DISPLAY_NAMES[label], 0.28) 
-                    for label in CLASSIFICATION_LABELS
-                ], className="mt-3")
-            ], className="info-block feature mb-5"),
+                html.Hr(className="text-secondary opacity-25"),
+                dbc.Row([
+                    dbc.Col([
+                        html.P("University Honours Project • 2026", className="footer-text")
+                    ], width=6),
+                    dbc.Col([
+                        html.P("LBS-25-986", className="footer-text text-end")
+                    ], width=6)
+                ])
+            ], className="py-4")
             
-            # CTA - Simple and clean
-            dbc.Row([
-                dbc.Col([
-                    html.H5("Ready to Explore?", className="mb-2"),
-                    html.P("Search the dataset using natural language.", 
-                           className="text-muted mb-0")
-                ], md=8, className="d-flex flex-column justify-content-center"),
-                dbc.Col([
-                    dbc.Button("Open Explorer", href="/explorer", color="primary", 
-                               size="lg", className="w-100")
-                ], md=4)
-            ], className="p-4 bg-light rounded-3 mb-4"),
-            
-            # Footer with Social Links
-            html.Footer([
-                html.Hr(className="my-4"),
-                html.Div([
-                    html.P("Natural Disaster Visualisation Tool", className="fw-bold mb-2"),
-                    html.P("Built with CLIP, UMAP, and Dash", className="text-muted small mb-3"),
-                    html.Div([
-                        html.A([
-                            html.I(className="bi bi-github me-2"),
-                            "GitHub"
-                        ], href="https://github.com/730Rashid", target="_blank",
-                           className="footer-link me-4"),
-                        html.A([
-                            html.I(className="bi bi-linkedin me-2"),
-                            "LinkedIn"
-                        ], href="https://www.linkedin.com/in/rashid-pandor-85537b22b/", 
-                           target="_blank", className="footer-link")
-                    ], className="mb-3"),
-                    html.P("© 2026 Rashid Pandor", className="text-muted small mb-0")
-                ], className="text-center py-4")
-            ])
-        ], fluid=True, className="py-4")
+        ], fluid=True, style={"maxWidth": "1000px"})
     ])
 
 
 def explorer_page():
-    """Interactive explorer page."""
+    """Interactive Data Explorer."""
     return dbc.Container([
-        # Search Bar
-        dbc.Card([
-            dbc.CardBody([
-                dbc.Row([
-                    dbc.Col([
-                        dbc.Label("Filter by Event", className="small text-muted"),
-                        dcc.Dropdown(
-                            id="event-filter",
-                            options=[{"label": "All Events", "value": "all"}] +
-                                    [{"label": e, "value": e} for e in UNIQUE_EVENTS],
-                            value="all",
-                            clearable=False
-                        )
-                    ], md=3),
-                    dbc.Col([
-                        dbc.Label("Semantic Search", className="small text-muted"),
-                        dbc.InputGroup([
-                            dbc.Input(
-                                id="search-input",
-                                type="text",
-                                placeholder="e.g. flooded street, rescue boat",
-                                debounce=True
-                            ),
-                            dbc.Button("Search", id="search-btn", n_clicks=0, color="primary"),
-                            dbc.Button("Clear", id="clear-btn", n_clicks=0, color="secondary", outline=True)
-                        ])
-                    ], md=6),
-                    dbc.Col([
-                        dbc.Label("Status", className="small text-muted"),
-                        html.Div(id="search-status", className="text-muted pt-2")
-                    ], md=3)
-                ], align="end")
-            ])
-        ], className="mb-3"),
-        
-        # Tip
-        dbc.Alert(
-            "Click any point on the map to find visually similar images",
-            color="info",
-            className="py-2 mb-3 text-center"
-        ),
+        # Filter Bar
+        html.Div([
+            dbc.Row([
+                dbc.Col([
+                    dbc.Label("Filter by Event", className="small text-secondary fw-bold"),
+                    dcc.Dropdown(
+                        id="event-filter",
+                        options=[{"label": "All Events", "value": "all"}] +
+                                [{"label": e, "value": e} for e in UNIQUE_EVENTS],
+                        value="all",
+                        clearable=False,
+                        className="dash-dropdown"
+                    )
+                ], md=3),
+                dbc.Col([
+                    dbc.Label("Semantic Query", className="small text-secondary fw-bold"),
+                    dbc.InputGroup([
+                        dbc.Input(
+                            id="search-input",
+                            type="text",
+                            placeholder="e.g. damaged bridge, temporary shelter...",
+                            debounce=True,
+                            className="custom-input",
+                            style={"borderRight": "none"}
+                        ),
+                        dbc.Button("Search", id="search-btn", n_clicks=0, className="btn-primary-action"),
+                        dbc.Button("Clear", id="clear-btn", n_clicks=0, color="link", className="text-secondary")
+                    ])
+                ], md=6),
+                dbc.Col([
+                    dbc.Label("System Status", className="small text-secondary fw-bold"),
+                    html.Div(id="search-status", className="text-secondary small pt-2")
+                ], md=3)
+            ], align="start", className="g-4")
+        ], className="paper-card mb-4 py-3"),
         
         dcc.Store(id="clicked-point-store", data=None),
         
@@ -500,49 +410,46 @@ def explorer_page():
         dbc.Row([
             # Left: UMAP
             dbc.Col([
-                dbc.Card([
-                    dbc.CardHeader([
-                        html.H6("Embedding Space", className="mb-0 d-inline"),
-                        html.Span(" (UMAP)", className="text-muted small")
-                    ]),
-                    dbc.CardBody([
-                        dcc.Graph(
-                            id="umap-graph",
-                            style={"height": "65vh"},
-                            config={"displaylogo": False}
-                        )
-                    ], className="p-2")
-                ])
-            ], md=7),
+                html.Div([
+                    html.Div([
+                        html.H5("Data Projection (UMAP)", className="paper-title mb-0"),
+                    ], className="paper-header"),
+                    
+                    dcc.Graph(
+                        id="umap-graph",
+                        style={"height": "75vh"},
+                        config={"displaylogo": False, "modeBarButtonsToRemove": ["lasso2d", "select2d"]}
+                    )
+                ], className="paper-card p-0") # p-0 for graph to fill
+            ], md=8),
             
             # Right: Gallery
             dbc.Col([
-                dbc.Card([
-                    dbc.CardHeader([
-                        html.H6(id="gallery-title", children="Results", className="mb-0")
-                    ]),
-                    dbc.CardBody([
-                        html.Div(
-                            id="image-grid",
-                            style={"height": "65vh", "overflowY": "auto"}
-                        )
-                    ], className="p-2")
-                ])
-            ], md=5)
-        ])
-    ], fluid=True, className="py-3")
+                html.Div([
+                    html.Div([
+                        html.H5(id="gallery-title", children="Selected Results", className="paper-title mb-0"),
+                    ], className="paper-header mx-3 mt-3"),
+                    
+                    html.Div(
+                        id="image-grid",
+                        style={"height": "75vh", "overflowY": "auto", "padding": "0 16px 16px 16px"}
+                    )
+                ], className="paper-card p-0")
+            ], md=4)
+        ], className="g-4")
+    ], fluid=True, style={"maxWidth": "1400px"}, className="py-4")
 
 
 # Navigation
 navbar = dbc.NavbarSimple(
     children=[
-        dbc.NavItem(dbc.NavLink("Overview", href="/", className="text-dark")),
-        dbc.NavItem(dbc.NavLink("Explorer", href="/explorer", className="text-dark")),
+        dbc.NavItem(dbc.NavLink("Project Abstract", href="/", active="exact")),
+        dbc.NavItem(dbc.NavLink("Data Explorer", href="/explorer", active="exact")),
     ],
-    brand="CrisisMMD",
+    brand="CrisisMMD Visualisation",
     brand_href="/",
-    color="light",
-    className="border-bottom mb-0"
+    color="white",
+    className="navbar-custom"
 )
 
 app.layout = html.Div([
@@ -592,16 +499,18 @@ def build_image_card(row, score, score_label="Match"):
         badge_elements = [create_badge(label, conf) for label, conf in classifications[:3]]
         
         return dbc.Card([
-            dbc.CardImg(src=img_url, top=True, className="gallery-img"),
+            dbc.CardImg(src=img_url, top=True, className="gallery-img", style={"borderRadius": "4px 4px 0 0"}),
             dbc.CardBody([
-                html.Small(row["event"], className="text-muted d-block"),
-                html.Span(
-                    "{}: {:.0f}%".format(score_label, score * 100),
-                    className="fw-bold text-primary"
-                ),
-                html.Div(badge_elements, className="mt-2") if badge_elements else None
+                html.Div([
+                    html.Span(row["event"], className="small text-muted d-block text-truncate"),
+                    html.Div([
+                        html.Span("{:.0f}%".format(score * 100), className="fw-bold text-dark"),
+                        html.Span(" " + score_label.lower(), className="small text-secondary")
+                    ])
+                ], className="mb-2"),
+                html.Div(badge_elements, className="d-flex flex-wrap") if badge_elements else None
             ], className="p-2")
-        ], className="mb-2")
+        ], className="mb-3 border bg-white shadow-sm")
     except ValueError:
         return None
 
@@ -625,44 +534,47 @@ def update_view(n_clicks, n_submit, selected_event, clicked_index, query):
     """Update the visualisation based on user interaction."""
     fig = go.Figure()
     images = []
-    status = "Ready"
-    gallery_title = "Results"
+    status = "Ready to search."
+    gallery_title = "Selected Images"
     
     if selected_event and selected_event != "all":
         event_mask = df["event"] == selected_event
         filtered_df = df[event_mask]
         ghosted_df = df[~event_mask]
         filtered_indices = filtered_df["original_idx"].tolist()
-        status = "{:,} images in {}".format(len(filtered_df), selected_event)
+        status = "Filtering for {} ({} images)".format(selected_event, len(filtered_df))
     else:
         filtered_df = df
         ghosted_df = pd.DataFrame()
         filtered_indices = None
-        status = "{:,} images".format(len(df))
+        status = "Displaying complete dataset ({:,} images)".format(len(df))
     
-    # Ghost layer
+    # Theme Colors - Academic Light
+    COLOR_BG = "rgba(0,0,0,0)" 
+    
+    # Ghost layer (Background context)
     if len(ghosted_df) > 0:
         fig.add_trace(go.Scattergl(
             x=ghosted_df["x"],
             y=ghosted_df["y"],
             mode="markers",
-            marker=dict(size=4, color="#e0e0e0", opacity=0.2),
+            marker=dict(size=3, color="#f1f5f9", opacity=0.8), # Very light grey
             hoverinfo="skip",
             showlegend=False
         ))
     
-    # Active layer
+    # Active layer (Primary Data)
     fig.add_trace(go.Scattergl(
         x=filtered_df["x"],
         y=filtered_df["y"],
         mode="markers",
-        marker=dict(size=5, color="#6c9bd1", opacity=0.5),
+        marker=dict(size=4, color="#94a3b8", opacity=0.6, line=dict(width=0)), # Slate grey
         text=filtered_df["hover"],
         hovertemplate="%{text}<extra></extra>",
         showlegend=False
     ))
 
-    # Visual Query
+    # Visual Query Selection
     if clicked_index is not None:
         indices, scores = visual_search(clicked_index, subset_indices=filtered_indices)
         match_df = df.iloc[indices].copy()
@@ -674,10 +586,10 @@ def update_view(n_clicks, n_submit, selected_event, clicked_index, query):
             y=[query_row["y"]],
             mode="markers",
             marker=dict(
-                size=16, color="#e53935", opacity=1.0,
-                line=dict(width=2, color="white"), symbol="star"
+                size=14, color="#ea580c", opacity=1.0, # Orange highlight
+                line=dict(width=2, color="white")
             ),
-            hovertemplate="<b>Query</b><extra></extra>",
+            hovertemplate="<b>Selected Point</b><extra></extra>",
             showlegend=False
         ))
         
@@ -686,29 +598,28 @@ def update_view(n_clicks, n_submit, selected_event, clicked_index, query):
             y=match_df["y"],
             mode="markers",
             marker=dict(
-                size=9, color="#27ae60", opacity=0.9,
-                line=dict(width=1, color="white")
+                size=6, color="#2563eb", opacity=0.8, # Royal Blue
+                line=dict(width=0)
             ),
             text=match_df["hover"],
             hovertemplate="%{text}<extra></extra>",
             showlegend=False
         ))
         
-        status = "{} similar images".format(len(indices))
-        gallery_title = "Similar Images"
+        status = "Identified {} visually similar images.".format(len(indices))
+        gallery_title = "Visually Similar Images"
         
-        for _, row in match_df.head(9).iterrows():
+        for _, row in match_df.head(10).iterrows():
             card = build_image_card(row, row["score"], "Similarity")
             if card:
-                images.append(dbc.Col(card, width=4))
+                images.append(card)
 
-    # Text Search
+    # Text Search 
     elif query and len(query.strip()) > 2:
         indices, scores = semantic_search(query.strip(), subset_indices=filtered_indices)
         match_df = df.iloc[indices].copy()
         match_df["score"] = scores
         
-        # Filter by minimum threshold (28%) to remove weak matches
         MIN_THRESHOLD = 0.28
         strong_matches = match_df[match_df["score"] >= MIN_THRESHOLD]
         
@@ -718,7 +629,7 @@ def update_view(n_clicks, n_submit, selected_event, clicked_index, query):
                 y=strong_matches["y"],
                 mode="markers",
                 marker=dict(
-                    size=10, color="#3498db", opacity=1.0,
+                    size=8, color="#2563eb", opacity=0.9, # Royal Blue
                     line=dict(width=1, color="white")
                 ),
                 text=strong_matches["hover"],
@@ -726,37 +637,45 @@ def update_view(n_clicks, n_submit, selected_event, clicked_index, query):
                 showlegend=False
             ))
             
-            status = "{} relevant matches for '{}' (≥28% similarity)".format(len(strong_matches), query)
-            gallery_title = "Search Results"
+            status = "Found {} matches for '{}'.".format(len(strong_matches), query)
+            gallery_title = "Search Results: {}".format(query)
             
-            for _, row in strong_matches.head(9).iterrows():
+            for _, row in strong_matches.head(10).iterrows():
                 card = build_image_card(row, row["score"], "Match")
                 if card:
-                    images.append(dbc.Col(card, width=4))
+                    images.append(card)
         else:
-            # No strong matches - show message
-            status = "No strong matches for '{}' (try a different query)".format(query)
+            status = "No significant matches found for '{}'.".format(query)
             gallery_title = "No Results"
             images.append(html.Div([
-                html.I(className="bi bi-search fs-1 text-muted"),
-                html.P("No images matched '{}' with ≥28% similarity.".format(query), 
-                       className="text-muted mt-2"),
-                html.P("Try more specific terms like 'flooded street' or 'rescue helicopter'.",
-                       className="small text-muted")
+                html.P("No images matched your query with sufficient confidence.", 
+                       className="text-secondary"),
+                html.Small("Try using broader terms like 'flooding' or 'rubble'.", className="text-muted")
             ], className="text-center py-5"))
 
     fig.update_layout(
-        plot_bgcolor="white",
-        paper_bgcolor="white",
+        plot_bgcolor="#ffffff", # Explicit white background for academic chart look
+        paper_bgcolor="#ffffff",
         margin=dict(l=10, r=10, t=10, b=10),
-        xaxis=dict(visible=False),
-        yaxis=dict(visible=False),
-        dragmode="pan"
+        xaxis=dict(visible=False, showgrid=False, zeroline=False),
+        yaxis=dict(visible=False, showgrid=False, zeroline=False),
+        dragmode="pan",
+        showlegend=False
     )
     
-    # Wrap images in a Row for Bootstrap grid
-    image_grid = dbc.Row(images, className="g-2") if images else html.Div("Search or click to see results", className="text-muted text-center py-5")
+    final_grid = []
+    if images and isinstance(images[0], html.Div):
+         final_grid = images
+    else:
+        final_grid = [dbc.Col(img, width=12) for img in images]
+
+    image_grid = dbc.Row(final_grid, className="g-3")
     
+    if not images and not query and clicked_index is None:
+         image_grid = html.Div([
+             html.P("Select an event or click a data point on the projection to view details.", className="text-muted small text-center mt-5")
+         ])
+
     return fig, image_grid, status, gallery_title
 
 
