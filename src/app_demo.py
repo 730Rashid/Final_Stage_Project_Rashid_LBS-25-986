@@ -154,7 +154,7 @@ def create_badge(label, confidence):
     )
 
 
-# Page Layouts
+# Page Layouts for the Websites
 
 def overview_page():
     """Overview landing page - Research Abstract Style."""
@@ -279,7 +279,7 @@ def overview_page():
             html.Footer([
                 html.Hr(className="mt-5 mb-4 text-muted opacity-25"),
                 html.Div([
-                    html.P("CrisisMMD Visualisation Tool", className="fw-bold mb-2", style={"letterSpacing": "0.05em"}),
+                    html.P("Disaster ImageVisualisation Tool", className="fw-bold mb-2", style={"letterSpacing": "0.05em"}),
                     html.P("Built with CLIP, UMAP, and Dash", className="text-secondary small mb-4"),
                     html.Div([
                         html.A([

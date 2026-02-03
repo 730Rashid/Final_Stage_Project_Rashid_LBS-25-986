@@ -122,7 +122,7 @@ def clean_dataset():
     and copies valid images to the clean data folder. The original folder
     structure is preserved so that event categories remain intact.
     """
-    print("Starting Data Cleaning Pipeline...")
+    print("Data Cleaning Pipeline...")
     print("Timestamp: {}".format(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))) # We check the time to make sure it is runnning in real time.
     
     # Check input folder exists
