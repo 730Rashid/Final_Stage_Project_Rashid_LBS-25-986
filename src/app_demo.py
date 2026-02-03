@@ -1,5 +1,5 @@
 """
-CrisisMMD Visualisation App.
+CrisisMMD Visualisation App - Frontend.
 
 A humanitarian aid tool for exploring disaster imagery using AI-powered
 semantic search and visual similarity. Built with CLIP embeddings and UMAP.
@@ -14,199 +14,29 @@ from dash import dcc, html, Input, Output, State, ctx
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 import pandas as pd
-import numpy as np
-import json
-import torch
+import os
 from pathlib import Path
 from flask import send_from_directory
-from transformers import CLIPProcessor, CLIPModel
-from sklearn.metrics.pairwise import cosine_similarity
-import os
 
-
-# Path Configuration
-PROJECT_ROOT = Path(__file__).parent.parent
-DATA_PATH = PROJECT_ROOT / "data" / "visualisation" / "umap_data.json"
-EMBEDDINGS_PATH = PROJECT_ROOT / "data" / "embeddings" / "embeddings.npy"
-IMAGE_FOLDER = PROJECT_ROOT / "data" / "processed" / "clean_data"
-
-print("Starting Application...")
-
-
-# Load Metadata
-try:
-    with open(DATA_PATH, "r") as f:
-        data = json.load(f)
-    df = pd.DataFrame(data)
-except FileNotFoundError:
-    print("Could not find {}. Run umap_reduction.py first.".format(DATA_PATH))
-    exit()
-
-
-def parse_event(path):
-    """Extract event name from folder structure."""
-    path = str(path).replace("\\", "/").lower()
-    
-    event_mappings = {
-        "california_wildfires": "California Wildfires",
-        "hurricane_harvey": "Hurricane Harvey",
-        "hurricane_irma": "Hurricane Irma",
-        "hurricane_maria": "Hurricane Maria",
-        "iraq_iran_earthquake": "Iraq-Iran Earthquake",
-        "mexico_earthquake": "Mexico Earthquake",
-        "srilanka_floods": "Sri Lanka Floods",
-    }
-    
-    for key, label in event_mappings.items():
-        if key in path:
-            return label
-    
-    return "Unknown Event"
-
-
-df["event"] = df["path"].apply(parse_event)
-df["filename"] = df["path"].apply(lambda p: Path(p).name)
-df["hover"] = df.apply(
-    lambda r: "<b>{}</b><br>{}".format(r["event"], r["filename"]), 
-    axis=1
+# Import backend functions
+from app_backend import (
+    get_manager,
+    get_dataframe,
+    get_unique_events,
+    semantic_search,
+    visual_search,
+    classify_image,
+    CLASSIFICATION_LABELS,
+    LABEL_DISPLAY_NAMES,
+    PROJECT_ROOT,
+    IMAGE_FOLDER
 )
-df["original_idx"] = df.index
-
-UNIQUE_EVENTS = sorted(df["event"].unique())
-print("Metadata loaded: {} images across {} events".format(len(df), len(UNIQUE_EVENTS)))
 
 
-# Load CLIP Model
-print("Loading CLIP Model...")
-device = "cuda" if torch.cuda.is_available() else "cpu"
-print("Inference Device: {}".format(device))
-
-try:
-    clip_model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32").to(device)
-    clip_processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
-    print("Loading Image Embeddings...")
-    embeddings = np.load(EMBEDDINGS_PATH)
-    print("Embeddings loaded: {}".format(embeddings.shape))
-except Exception as e:
-    print("Failed to load AI models: {}".format(e))
-    exit()
-
-
-# Zero Shot Classification
-CLASSIFICATION_LABELS = [
-    "fire or flames",
-    "flood or water damage",
-    "damaged building or infrastructure",
-    "rescue operation",
-    "debris or rubble",
-    "vehicle",
-    "people or crowd",
-    "smoke",
-    "fallen trees",
-    "emergency services"
-]
-
-LABEL_DISPLAY_NAMES = {
-    "fire or flames": "Fire",
-    "flood or water damage": "Flood",
-    "damaged building or infrastructure": "Damage",
-    "rescue operation": "Rescue",
-    "debris or rubble": "Debris",
-    "vehicle": "Vehicle",
-    "people or crowd": "People",
-    "smoke": "Smoke",
-    "fallen trees": "Trees",
-    "emergency services": "Emergency"
-}
-
-print("Precomputing label embeddings...")
-label_embeddings = None
-
-try:
-    label_inputs = clip_processor(
-        text=CLASSIFICATION_LABELS, 
-        return_tensors="pt", 
-        padding=True
-    ).to(device)
-    
-    with torch.no_grad():
-        label_features = clip_model.get_text_features(**label_inputs)
-    
-    if hasattr(label_features, "pooler_output"):
-        label_features = label_features.pooler_output
-    elif hasattr(label_features, "last_hidden_state"):
-        label_features = label_features.last_hidden_state[:, 0, :]
-    
-    label_features = label_features / label_features.norm(p=2, dim=-1, keepdim=True)
-    label_embeddings = label_features.cpu().numpy()
-    print("Label embeddings ready")
-except Exception as e:
-    print("Could not precompute label embeddings: {}".format(e))
-
-
-# Search Functions
-
-def semantic_search(query, subset_indices=None, top_k=50):
-    """Find images matching the text query."""
-    inputs = clip_processor(text=[query], return_tensors="pt", padding=True).to(device)
-    
-    with torch.no_grad():
-        text_features = clip_model.get_text_features(**inputs)
-    
-    if hasattr(text_features, "pooler_output"):
-        text_features = text_features.pooler_output
-    elif hasattr(text_features, "last_hidden_state"):
-        text_features = text_features.last_hidden_state[:, 0, :]
-    
-    text_features = text_features / text_features.norm(p=2, dim=-1, keepdim=True)
-    text_vector = text_features.cpu().numpy()
-    
-    if subset_indices is not None and len(subset_indices) > 0:
-        subset_embeddings = embeddings[subset_indices]
-        similarities = cosine_similarity(text_vector, subset_embeddings)[0]
-        local_top_k = min(top_k, len(subset_indices))
-        local_top_indices = np.argsort(similarities)[::-1][:local_top_k]
-        global_indices = np.array(subset_indices)[local_top_indices]
-        return global_indices, similarities[local_top_indices]
-    else:
-        similarities = cosine_similarity(text_vector, embeddings)[0]
-        top_indices = np.argsort(similarities)[::-1][:top_k]
-        return top_indices, similarities[top_indices]
-
-
-def visual_search(image_index, subset_indices=None, top_k=50):
-    """Find visually similar images."""
-    query_vector = embeddings[image_index].reshape(1, -1)
-    
-    if subset_indices is not None and len(subset_indices) > 0:
-        subset_embeddings = embeddings[subset_indices]
-        similarities = cosine_similarity(query_vector, subset_embeddings)[0]
-        local_top_k = min(top_k, len(subset_indices))
-        local_top_indices = np.argsort(similarities)[::-1][:local_top_k]
-        global_indices = np.array(subset_indices)[local_top_indices]
-        return global_indices, similarities[local_top_indices]
-    else:
-        similarities = cosine_similarity(query_vector, embeddings)[0]
-        top_indices = np.argsort(similarities)[::-1][:top_k]
-        return top_indices, similarities[top_indices]
-
-
-def classify_image(image_index, threshold=0.20):
-    """Classify image content using zero shot classification."""
-    if label_embeddings is None:
-        return []
-    
-    image_vector = embeddings[image_index].reshape(1, -1)
-    similarities = cosine_similarity(image_vector, label_embeddings)[0]
-    
-    results = []
-    for i, score in enumerate(similarities):
-        if score >= threshold:
-            display_name = LABEL_DISPLAY_NAMES[CLASSIFICATION_LABELS[i]]
-            results.append((display_name, float(score)))
-    
-    results.sort(key=lambda x: x[1], reverse=True)
-    return results
+# Initialise backend and get data
+manager = get_manager()
+df = get_dataframe()
+UNIQUE_EVENTS = get_unique_events()
 
 
 # Flask App
@@ -235,8 +65,6 @@ def serve_image(p):
 
 def create_badge(label, confidence):
     """Create a classification badge using Academic colours."""
-    # Confidence dictates the 'strength' of the evidence
-    
     score_pct = confidence * 100
     
     badge_class = "badge-academic"
@@ -245,7 +73,6 @@ def create_badge(label, confidence):
     elif confidence >= 0.24:
         badge_class += " badge-mid"
 
-    # Using standard academic terms
     return html.Span(
         "{} ({:.0f}%)".format(label, score_pct),
         className=badge_class + " me-1 mb-1"
@@ -303,79 +130,110 @@ def overview_page():
                             dbc.Col([
                                 html.Div([
                                     html.Div("512", className="stat-value"),
-                                    html.Div("Vector Dimensions", className="stat-label")
+                                    html.Div("Embedding Dimensions", className="stat-label")
+                                ], className="stat-box")
+                            ], width=3),
+                            dbc.Col([
+                                html.Div([
+                                    html.Div(str(len(CLASSIFICATION_LABELS)), className="stat-value"),
+                                    html.Div("Classification Labels", className="stat-label")
                                 ], className="stat-box")
                             ], width=3),
                         ])
-                    ], className="paper-card h-100")
-                ], md=12, className="mb-4"),
-            ]),
+                    ], className="paper-card")
+                ], md=12)
+            ], className="mb-4"),
             
-            # Methodology Section
+            # Abstract Text
             dbc.Row([
                 dbc.Col([
                     html.Div([
-                        html.H4("Methodology", className="paper-title border-bottom pb-2 mb-3"),
+                        html.H3("Abstract", className="mb-3"),
                         html.P([
-                            html.Strong("1. Data Ingestion: "), 
-                            "The system processes over 17,000 images from the CrisisMMD dataset, covering seven major natural disaster events."
+                            "In the aftermath of a natural disaster, social media platforms become flooded with ",
+                            "millions of images from affected areas. For humanitarian organisations, this presents ",
+                            "a critical challenge: identifying relevant, actionable images from the deluge. ",
+                            html.Strong("Traditional keyword-based search fails"), " because crisis images often lack ",
+                            "descriptive text, and pre-defined labels cannot anticipate every possible disaster scenario."
                         ]),
                         html.P([
-                            html.Strong("2. Vectorisation: "), 
-                            "We utilise the OpenAI CLIP model (ViT-B/32) to generate 512-dimensional semantic embeddings for each image."
+                            "This project demonstrates a ", html.Strong("zero-shot semantic search"), " approach using ",
+                            "OpenAI's CLIP model. By encoding images into a shared embedding space with natural language, ",
+                            "we enable responders to query the dataset using plain English—describing ",
+                            html.Em("what they need to see"), " rather than relying on pre-existing tags."
                         ]),
                         html.P([
-                            html.Strong("3. Dimensionality Reduction: "), 
-                            "Uniform Manifold Approximation and Projection (UMAP) reduces these high-dimensional vectors to 2D for visualisation."
+                            "The visualisation uses ", html.Strong("UMAP dimensionality reduction"), " to project the ",
+                            "512-dimensional embedding space into an interactive 2D scatter plot. This reveals the ",
+                            "semantic structure of the dataset, showing how images cluster by content type and disaster event."
                         ])
-                    ], className="paper-card h-100")
-                ], md=6),
-                
+                    ], className="paper-card")
+                ], md=8),
                 dbc.Col([
                     html.Div([
-                        html.H4("Capabilities", className="paper-title border-bottom pb-2 mb-3"),
-                        html.Ul([
-                            html.Li("Zero-Shot Classification: Categorising images without explicit training labels."),
-                            html.Li("Semantic Search: Retrieving images using natural language queries (e.g. \"flood water rising\")."),
-                            html.Li("Visual Similarity: Identifying related imagery based on visual content alone.")
-                        ], className="text-secondary small ps-3"),
-                        
-                        dbc.Alert([
-                            html.I(className="bi bi-info-circle me-2"),
-                            "This system is designed to aid humanitarian response by filtering visual noise during crises."
-                        ], color="light", className="mt-4 small")
-                    ], className="paper-card h-100")
-                ], md=6),
-            ], className="g-4 mb-5"),
+                        html.H4("Technical Pipeline", className="paper-title mb-3"),
+                        html.Div([
+                            html.Div([
+                                html.Strong("1. Data Ingestion"),
+                                html.P("CrisisMMD dataset with 17,463 crisis images across 7 events.", 
+                                       className="small text-secondary mb-3")
+                            ]),
+                            html.Div([
+                                html.Strong("2. Vectorisation"),
+                                html.P("CLIP ViT-B/32 extracts 512-dimensional semantic embeddings.", 
+                                       className="small text-secondary mb-3")
+                            ]),
+                            html.Div([
+                                html.Strong("3. Projection"),
+                                html.P("UMAP reduces dimensionality for 2D visualisation.", 
+                                       className="small text-secondary mb-3")
+                            ]),
+                            html.Div([
+                                html.Strong("4. Search"),
+                                html.P("Cosine similarity enables zero-shot text-to-image retrieval.", 
+                                       className="small text-secondary mb-0")
+                            ])
+                        ])
+                    ], className="paper-card")
+                ], md=4)
+            ], className="mb-4"),
             
             # Footer
-            html.Div([
-                html.Hr(className="text-secondary opacity-25"),
-                dbc.Row([
-                    dbc.Col([
-                        html.P("University Honours Project • 2026", className="footer-text")
-                    ], width=6),
-                    dbc.Col([
-                        html.P("LBS-25-986", className="footer-text text-end")
-                    ], width=6)
-                ])
-            ], className="py-4")
-            
-        ], fluid=True, style={"maxWidth": "1000px"})
+            html.Footer([
+                html.Hr(className="my-4"),
+                html.Div([
+                    html.P("CrisisMMD Visualisation Tool", className="fw-bold mb-2"),
+                    html.P("Built with CLIP, UMAP, and Dash", className="text-muted small mb-3"),
+                    html.Div([
+                        html.A([
+                            html.I(className="bi bi-github me-2"),
+                            "GitHub"
+                        ], href="https://github.com/730Rashid", target="_blank",
+                           className="footer-link me-4"),
+                        html.A([
+                            html.I(className="bi bi-linkedin me-2"),
+                            "LinkedIn"
+                        ], href="https://www.linkedin.com/in/rashid-pandor-85537b22b/", 
+                           target="_blank", className="footer-link")
+                    ], className="mb-3"),
+                    html.P("© 2026 Rashid Pandor", className="text-muted small mb-0")
+                ], className="text-center py-4")
+            ])
+        ], fluid=True, style={"maxWidth": "1200px"}, className="py-4")
     ])
 
 
 def explorer_page():
-    """Interactive Data Explorer."""
+    """Interactive explorer page."""
     return dbc.Container([
-        # Filter Bar
+        # Controls
         html.Div([
             dbc.Row([
                 dbc.Col([
                     dbc.Label("Filter by Event", className="small text-secondary fw-bold"),
                     dcc.Dropdown(
                         id="event-filter",
-                        options=[{"label": "All Events", "value": "all"}] +
+                        options=[{"label": "All Events", "value": "all"}] + 
                                 [{"label": e, "value": e} for e in UNIQUE_EVENTS],
                         value="all",
                         clearable=False,
@@ -420,7 +278,7 @@ def explorer_page():
                         style={"height": "75vh"},
                         config={"displaylogo": False, "modeBarButtonsToRemove": ["lasso2d", "select2d"]}
                     )
-                ], className="paper-card p-0") # p-0 for graph to fill
+                ], className="paper-card p-0")
             ], md=8),
             
             # Right: Gallery
@@ -498,19 +356,20 @@ def build_image_card(row, score, score_label="Match"):
         
         badge_elements = [create_badge(label, conf) for label, conf in classifications[:3]]
         
-        return dbc.Card([
-            dbc.CardImg(src=img_url, top=True, className="gallery-img", style={"borderRadius": "4px 4px 0 0"}),
-            dbc.CardBody([
-                html.Div([
-                    html.Span(row["event"], className="small text-muted d-block text-truncate"),
-                    html.Div([
-                        html.Span("{:.0f}%".format(score * 100), className="fw-bold text-dark"),
-                        html.Span(" " + score_label.lower(), className="small text-secondary")
-                    ])
-                ], className="mb-2"),
-                html.Div(badge_elements, className="d-flex flex-wrap") if badge_elements else None
-            ], className="p-2")
-        ], className="mb-3 border bg-white shadow-sm")
+        score_color = "#16a34a" if score >= 0.30 else "#2563eb"
+        
+        return html.Div([
+            html.Img(src=img_url, className="w-100", 
+                     style={"borderRadius": "4px 4px 0 0", "objectFit": "cover", "height": "120px"}),
+            html.Div([
+                html.Small(row["event"], className="text-secondary d-block"),
+                html.Span(
+                    "{}: {:.0f}%".format(score_label, score * 100),
+                    style={"color": score_color, "fontWeight": "600"}
+                ),
+                html.Div(badge_elements, className="mt-2") if badge_elements else None
+            ], className="p-2", style={"borderTop": "1px solid #e2e8f0"})
+        ], className="paper-card p-0 mb-3")
     except ValueError:
         return None
 
@@ -534,47 +393,44 @@ def update_view(n_clicks, n_submit, selected_event, clicked_index, query):
     """Update the visualisation based on user interaction."""
     fig = go.Figure()
     images = []
-    status = "Ready to search."
-    gallery_title = "Selected Images"
+    status = "Ready"
+    gallery_title = "Results"
     
     if selected_event and selected_event != "all":
         event_mask = df["event"] == selected_event
         filtered_df = df[event_mask]
         ghosted_df = df[~event_mask]
         filtered_indices = filtered_df["original_idx"].tolist()
-        status = "Filtering for {} ({} images)".format(selected_event, len(filtered_df))
+        status = "{:,} images in {}".format(len(filtered_df), selected_event)
     else:
         filtered_df = df
         ghosted_df = pd.DataFrame()
         filtered_indices = None
-        status = "Displaying complete dataset ({:,} images)".format(len(df))
+        status = "{:,} images".format(len(df))
     
-    # Theme Colors - Academic Light
-    COLOR_BG = "rgba(0,0,0,0)" 
-    
-    # Ghost layer (Background context)
+    # Ghost layer
     if len(ghosted_df) > 0:
         fig.add_trace(go.Scattergl(
             x=ghosted_df["x"],
             y=ghosted_df["y"],
             mode="markers",
-            marker=dict(size=3, color="#f1f5f9", opacity=0.8), # Very light grey
+            marker=dict(size=3, color="#d1d5db", opacity=0.3),
             hoverinfo="skip",
             showlegend=False
         ))
     
-    # Active layer (Primary Data)
+    # Active layer
     fig.add_trace(go.Scattergl(
         x=filtered_df["x"],
         y=filtered_df["y"],
         mode="markers",
-        marker=dict(size=4, color="#94a3b8", opacity=0.6, line=dict(width=0)), # Slate grey
+        marker=dict(size=4, color="#94a3b8", opacity=0.5),
         text=filtered_df["hover"],
         hovertemplate="%{text}<extra></extra>",
         showlegend=False
     ))
 
-    # Visual Query Selection
+    # Visual Query
     if clicked_index is not None:
         indices, scores = visual_search(clicked_index, subset_indices=filtered_indices)
         match_df = df.iloc[indices].copy()
@@ -586,10 +442,10 @@ def update_view(n_clicks, n_submit, selected_event, clicked_index, query):
             y=[query_row["y"]],
             mode="markers",
             marker=dict(
-                size=14, color="#ea580c", opacity=1.0, # Orange highlight
-                line=dict(width=2, color="white")
+                size=14, color="#ea580c", opacity=1.0,
+                line=dict(width=2, color="white"), symbol="star"
             ),
-            hovertemplate="<b>Selected Point</b><extra></extra>",
+            hovertemplate="<b>Query Image</b><extra></extra>",
             showlegend=False
         ))
         
@@ -598,7 +454,7 @@ def update_view(n_clicks, n_submit, selected_event, clicked_index, query):
             y=match_df["y"],
             mode="markers",
             marker=dict(
-                size=6, color="#2563eb", opacity=0.8, # Royal Blue
+                size=6, color="#2563eb", opacity=0.8,
                 line=dict(width=0)
             ),
             text=match_df["hover"],
@@ -629,7 +485,7 @@ def update_view(n_clicks, n_submit, selected_event, clicked_index, query):
                 y=strong_matches["y"],
                 mode="markers",
                 marker=dict(
-                    size=8, color="#2563eb", opacity=0.9, # Royal Blue
+                    size=8, color="#2563eb", opacity=0.9,
                     line=dict(width=1, color="white")
                 ),
                 text=strong_matches["hover"],
@@ -654,7 +510,7 @@ def update_view(n_clicks, n_submit, selected_event, clicked_index, query):
             ], className="text-center py-5"))
 
     fig.update_layout(
-        plot_bgcolor="#ffffff", # Explicit white background for academic chart look
+        plot_bgcolor="#ffffff",
         paper_bgcolor="#ffffff",
         margin=dict(l=10, r=10, t=10, b=10),
         xaxis=dict(visible=False, showgrid=False, zeroline=False),
@@ -673,7 +529,8 @@ def update_view(n_clicks, n_submit, selected_event, clicked_index, query):
     
     if not images and not query and clicked_index is None:
          image_grid = html.Div([
-             html.P("Select an event or click a data point on the projection to view details.", className="text-muted small text-center mt-5")
+             html.P("Select an event or click a data point on the projection to view details.", 
+                    className="text-muted small text-center mt-5")
          ])
 
     return fig, image_grid, status, gallery_title

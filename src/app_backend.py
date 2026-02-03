@@ -1,213 +1,385 @@
 """
-App Backend for Semantic Search.
+App Backend for Semantic Search and Classification.
 
-This module provides the AI logic for text-to-image semantic search.
-It loads pre-computed CLIP embeddings and allows searching for images
-using natural language queries.
+This module provides the AI logic for the CrisisMMD visualisation app:
+- Data loading (metadata, embeddings)
+- CLIP model management
+- Semantic search (text-to-image)
+- Visual search (image-to-image)
+- Zero-shot classification
 
 Author: Rashid
 Supervisor: XinHui Ma
 Project: Visualising Natural Disaster Image Embeddings
 """
 
-import sys
 import numpy as np
 import torch
 import json
+import pandas as pd
 from pathlib import Path
 from typing import List, Tuple, Optional
+from sklearn.metrics.pairwise import cosine_similarity
 
 
-# Add project root to path
+# Path Configuration
 PROJECT_ROOT = Path(__file__).parent.parent
-sys.path.insert(0, str(PROJECT_ROOT))
-
-
-# Paths to pre-computed data
+DATA_PATH = PROJECT_ROOT / "data" / "visualisation" / "umap_data.json"
 EMBEDDINGS_PATH = PROJECT_ROOT / "data" / "embeddings" / "embeddings.npy"
-FILENAMES_PATH = PROJECT_ROOT / "data" / "embeddings" / "filenames.json"
-UMAP_COORDS_PATH = PROJECT_ROOT / "data" / "visualisation" / "umap_coords.npy"
+IMAGE_FOLDER = PROJECT_ROOT / "data" / "processed" / "clean_data"
 
 
-class SemanticSearchEngine:
-    """
-    Semantic search engine using CLIP embeddings.
+# Event Mappings
+EVENT_MAPPINGS = {
+    "california_wildfires": "California Wildfires",
+    "hurricane_harvey": "Hurricane Harvey",
+    "hurricane_irma": "Hurricane Irma",
+    "hurricane_maria": "Hurricane Maria",
+    "iraq_iran_earthquake": "Iraq-Iran Earthquake",
+    "mexico_earthquake": "Mexico Earthquake",
+    "srilanka_floods": "Sri Lanka Floods",
+}
+
+
+# Classification Labels
+CLASSIFICATION_LABELS = [
+    "fire or flames",
+    "flood or water damage",
+    "damaged building or infrastructure",
+    "rescue operation",
+    "debris or rubble",
+    "vehicle",
+    "people or crowd",
+    "smoke",
+    "fallen trees",
+    "emergency services"
+]
+
+LABEL_DISPLAY_NAMES = {
+    "fire or flames": "Fire",
+    "flood or water damage": "Flood",
+    "damaged building or infrastructure": "Damage",
+    "rescue operation": "Rescue",
+    "debris or rubble": "Debris",
+    "vehicle": "Vehicle",
+    "people or crowd": "People",
+    "smoke": "Smoke",
+    "fallen trees": "Trees",
+    "emergency services": "Emergency"
+}
+
+
+def parse_event(path: str) -> str:
+    """Extract event name from folder structure."""
+    path = str(path).replace("\\", "/").lower()
     
-    This class loads pre-computed image embeddings and provides
-    text-to-image search using cosine similarity.
+    for key, label in EVENT_MAPPINGS.items():
+        if key in path:
+            return label
+    
+    return "Unknown Event"
+
+
+class CrisisDataManager:
+    """
+    Manages crisis image data and AI models.
+    
+    This class handles:
+    - Loading metadata and embeddings
+    - CLIP model for text/image encoding
+    - Semantic and visual search
+    - Zero-shot classification
     """
     
     def __init__(self):
-        """Initialise the search engine."""
+        """Initialise the data manager."""
+        self.df = None
         self.embeddings = None
-        self.filenames = None
-        self.umap_coords = None
-        self.model = None
-        self.processor = None
+        self.unique_events = None
+        self.clip_model = None
+        self.clip_processor = None
+        self.label_embeddings = None
         self.device = None
         self._loaded = False
     
-    def load(self):
-        """Load embeddings and CLIP model."""
+    def load(self) -> bool:
+        """Load all data and models."""
         if self._loaded:
             return True
         
-        # Load embeddings
-        if not EMBEDDINGS_PATH.exists():
-            print("ERROR: Embeddings not found at {}".format(EMBEDDINGS_PATH))
-            print("Run vectorise.py first")
+        print("Starting Application...")
+        
+        # Load metadata
+        if not self._load_metadata():
             return False
         
-        self.embeddings = np.load(EMBEDDINGS_PATH)
-        print("Loaded {} embeddings".format(len(self.embeddings)))
+        # Load CLIP model
+        if not self._load_clip_model():
+            return False
         
-        # Load filenames
-        if FILENAMES_PATH.exists():
-            with open(FILENAMES_PATH, "r") as f:
-                self.filenames = json.load(f)
+        # Load embeddings
+        if not self._load_embeddings():
+            return False
         
-        # Load UMAP coordinates if available
-        if UMAP_COORDS_PATH.exists():
-            self.umap_coords = np.load(UMAP_COORDS_PATH)
-            print("Loaded UMAP coordinates")
-        
-        # Load CLIP model for text encoding
-        self._load_clip_model()
+        # Precompute label embeddings
+        self._precompute_label_embeddings()
         
         self._loaded = True
         return True
     
-    def _load_clip_model(self):
-        """Load CLIP model for text encoding."""
-        from transformers import CLIPProcessor, CLIPModel
-        
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        print("Loading CLIP model on {}...".format(self.device))
-        
-        self.model = CLIPModel.from_pretrained(
-            "openai/clip-vit-base-patch32"
-        ).to(self.device)
-        self.processor = CLIPProcessor.from_pretrained(
-            "openai/clip-vit-base-patch32"
-        )
-        self.model.eval()
-        print("CLIP model loaded")
+    def _load_metadata(self) -> bool:
+        """Load UMAP metadata."""
+        try:
+            with open(DATA_PATH, "r") as f:
+                data = json.load(f)
+            self.df = pd.DataFrame(data)
+            
+            # Add derived columns
+            self.df["event"] = self.df["path"].apply(parse_event)
+            self.df["filename"] = self.df["path"].apply(lambda p: Path(p).name)
+            self.df["hover"] = self.df.apply(
+                lambda r: "<b>{}</b><br>{}".format(r["event"], r["filename"]),
+                axis=1
+            )
+            self.df["original_idx"] = self.df.index
+            
+            self.unique_events = sorted(self.df["event"].unique())
+            
+            print("Metadata loaded: {} images across {} events".format(
+                len(self.df), len(self.unique_events)
+            ))
+            return True
+            
+        except FileNotFoundError:
+            print("Could not find {}. Run umap_reduction.py first.".format(DATA_PATH))
+            return False
     
-    def encode_text(self, query: str) -> np.ndarray:
+    def _load_clip_model(self) -> bool:
+        """Load CLIP model for encoding."""
+        try:
+            from transformers import CLIPProcessor, CLIPModel
+            
+            print("Loading CLIP Model...")
+            self.device = "cuda" if torch.cuda.is_available() else "cpu"
+            print("Inference Device: {}".format(self.device))
+            
+            self.clip_model = CLIPModel.from_pretrained(
+                "openai/clip-vit-base-patch32"
+            ).to(self.device)
+            self.clip_processor = CLIPProcessor.from_pretrained(
+                "openai/clip-vit-base-patch32"
+            )
+            return True
+            
+        except Exception as e:
+            print("Failed to load CLIP model: {}".format(e))
+            return False
+    
+    def _load_embeddings(self) -> bool:
+        """Load image embeddings."""
+        try:
+            self.embeddings = np.load(EMBEDDINGS_PATH)
+            print("Embeddings loaded: {}".format(self.embeddings.shape))
+            return True
+        except Exception as e:
+            print("Failed to load embeddings: {}".format(e))
+            return False
+    
+    def _precompute_label_embeddings(self):
+        """Precompute embeddings for classification labels."""
+        try:
+            print("Precomputing label embeddings...")
+            
+            label_inputs = self.clip_processor(
+                text=CLASSIFICATION_LABELS,
+                return_tensors="pt",
+                padding=True
+            ).to(self.device)
+            
+            with torch.no_grad():
+                label_features = self.clip_model.get_text_features(**label_inputs)
+            
+            if hasattr(label_features, "pooler_output"):
+                label_features = label_features.pooler_output
+            elif hasattr(label_features, "last_hidden_state"):
+                label_features = label_features.last_hidden_state[:, 0, :]
+            
+            label_features = label_features / label_features.norm(p=2, dim=-1, keepdim=True)
+            self.label_embeddings = label_features.cpu().numpy()
+            
+            print("Label embeddings ready")
+            
+        except Exception as e:
+            print("Could not precompute label embeddings: {}".format(e))
+            self.label_embeddings = None
+    
+    def semantic_search(
+        self,
+        query: str,
+        subset_indices: Optional[List[int]] = None,
+        top_k: int = 50
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """
-        Encode a text query into a CLIP vector.
+        Find images matching the text query.
         
         Args:
             query: Natural language query.
+            subset_indices: Optional list of indices to search within.
+            top_k: Number of results to return.
             
         Returns:
-            512-dimensional normalised vector.
+            Tuple of (indices, similarity_scores).
         """
-        inputs = self.processor(
+        # Encode query
+        inputs = self.clip_processor(
             text=[query],
             return_tensors="pt",
             padding=True
         ).to(self.device)
         
         with torch.no_grad():
-            text_features = self.model.get_text_features(**inputs)
+            text_features = self.clip_model.get_text_features(**inputs)
         
-        # Handle both old and new transformers API
-        if hasattr(text_features, 'last_hidden_state'):
-            # Newer API returns object with pooler_output
+        if hasattr(text_features, "pooler_output"):
             text_features = text_features.pooler_output
+        elif hasattr(text_features, "last_hidden_state"):
+            text_features = text_features.last_hidden_state[:, 0, :]
         
-        # Normalise for cosine similarity
-        text_features = text_features / torch.norm(text_features, p=2, dim=-1, keepdim=True)
+        text_features = text_features / text_features.norm(p=2, dim=-1, keepdim=True)
+        text_vector = text_features.cpu().numpy()
         
-        return text_features.cpu().numpy().flatten()
+        # Search
+        if subset_indices is not None and len(subset_indices) > 0:
+            subset_embeddings = self.embeddings[subset_indices]
+            similarities = cosine_similarity(text_vector, subset_embeddings)[0]
+            local_top_k = min(top_k, len(subset_indices))
+            local_top_indices = np.argsort(similarities)[::-1][:local_top_k]
+            global_indices = np.array(subset_indices)[local_top_indices]
+            return global_indices, similarities[local_top_indices]
+        else:
+            similarities = cosine_similarity(text_vector, self.embeddings)[0]
+            top_indices = np.argsort(similarities)[::-1][:top_k]
+            return top_indices, similarities[top_indices]
     
-    def search(
+    def visual_search(
         self,
-        query: str,
-        top_k: int = 10
-    ) -> List[Tuple[int, float, str]]:
+        image_index: int,
+        subset_indices: Optional[List[int]] = None,
+        top_k: int = 50
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """
-        Search for images matching a text query.
+        Find visually similar images.
         
         Args:
-            query: Natural language query (e.g. "people in flood water").
+            image_index: Index of the query image.
+            subset_indices: Optional list of indices to search within.
             top_k: Number of results to return.
             
         Returns:
-            List of (index, similarity_score, filepath) tuples.
+            Tuple of (indices, similarity_scores).
         """
-        if not self._loaded:
-            self.load()
+        query_vector = self.embeddings[image_index].reshape(1, -1)
         
-        # Encode the query
-        query_vec = self.encode_text(query)
+        if subset_indices is not None and len(subset_indices) > 0:
+            subset_embeddings = self.embeddings[subset_indices]
+            similarities = cosine_similarity(query_vector, subset_embeddings)[0]
+            local_top_k = min(top_k, len(subset_indices))
+            local_top_indices = np.argsort(similarities)[::-1][:local_top_k]
+            global_indices = np.array(subset_indices)[local_top_indices]
+            return global_indices, similarities[local_top_indices]
+        else:
+            similarities = cosine_similarity(query_vector, self.embeddings)[0]
+            top_indices = np.argsort(similarities)[::-1][:top_k]
+            return top_indices, similarities[top_indices]
+    
+    def classify_image(
+        self,
+        image_index: int,
+        threshold: float = 0.20
+    ) -> List[Tuple[str, float]]:
+        """
+        Classify image content using zero-shot classification.
         
-        # Compute cosine similarity (embeddings are already normalised)
-        similarities = np.dot(self.embeddings, query_vec)
+        Args:
+            image_index: Index of the image to classify.
+            threshold: Minimum confidence threshold.
+            
+        Returns:
+            List of (label, confidence) tuples.
+        """
+        if self.label_embeddings is None:
+            return []
         
-        # Get top-k indices
-        top_indices = np.argsort(similarities)[::-1][:top_k]
+        image_vector = self.embeddings[image_index].reshape(1, -1)
+        similarities = cosine_similarity(image_vector, self.label_embeddings)[0]
         
         results = []
-        for idx in top_indices:
-            score = float(similarities[idx])
-            filepath = self.filenames[idx] if self.filenames else str(idx)
-            results.append((int(idx), score, filepath))
+        for i, score in enumerate(similarities):
+            if score >= threshold:
+                display_name = LABEL_DISPLAY_NAMES[CLASSIFICATION_LABELS[i]]
+                results.append((display_name, float(score)))
         
+        results.sort(key=lambda x: x[1], reverse=True)
         return results
-    
-    def get_image_path(self, index: int) -> Optional[str]:
-        """Get image path by index."""
-        if self.filenames and 0 <= index < len(self.filenames):
-            return self.filenames[index]
-        return None
-    
-    def get_umap_coords(self, index: int) -> Optional[Tuple[float, float]]:
-        """Get UMAP coordinates by index."""
-        if self.umap_coords is not None and 0 <= index < len(self.umap_coords):
-            return tuple(self.umap_coords[index])
-        return None
 
 
-# Global instance for easy access
-_engine = None
+# Global instance
+_manager = None
 
 
-def get_engine() -> SemanticSearchEngine:
-    """Get or create the global search engine instance."""
-    global _engine
-    if _engine is None:
-        _engine = SemanticSearchEngine()
-    return _engine
+def get_manager() -> CrisisDataManager:
+    """Get or create the global data manager."""
+    global _manager
+    if _manager is None:
+        _manager = CrisisDataManager()
+        _manager.load()
+    return _manager
 
 
-def search(query: str, top_k: int = 10) -> List[Tuple[int, float, str]]:
-    """
-    Convenience function for semantic search.
-    
-    Args:
-        query: Natural language query.
-        top_k: Number of results.
-        
-    Returns:
-        List of (index, score, filepath) tuples.
-    """
-    engine = get_engine()
-    return engine.search(query, top_k)
+# Convenience exports
+def get_dataframe():
+    """Get the metadata DataFrame."""
+    return get_manager().df
+
+
+def get_embeddings():
+    """Get the image embeddings."""
+    return get_manager().embeddings
+
+
+def get_unique_events():
+    """Get list of unique events."""
+    return get_manager().unique_events
+
+
+def semantic_search(query, subset_indices=None, top_k=50):
+    """Convenience wrapper for semantic search."""
+    return get_manager().semantic_search(query, subset_indices, top_k)
+
+
+def visual_search(image_index, subset_indices=None, top_k=50):
+    """Convenience wrapper for visual search."""
+    return get_manager().visual_search(image_index, subset_indices, top_k)
+
+
+def classify_image(image_index, threshold=0.20):
+    """Convenience wrapper for image classification."""
+    return get_manager().classify_image(image_index, threshold)
 
 
 if __name__ == "__main__":
     # Demo usage
-    print("Semantic Search Demo")
+    print("\nCrisisMMD Backend Demo\n")
     
-    engine = get_engine()
-    if engine.load():
-        query = "people helping after flood"
-        print("Query: '{}'".format(query))
-        
-        results = engine.search(query, top_k=5)
-        
-        print("Top 5 results:")
-        for idx, score, path in results:
-            print("  [{:.3f}] {}".format(score, Path(path).name))
+    manager = get_manager()
+    
+    print("Dataset: {} images".format(len(manager.df)))
+    print("Events: {}".format(manager.unique_events))
+    
+    # Test search
+    query = "flooded street"
+    print("\nSearch: '{}'".format(query))
+    indices, scores = manager.semantic_search(query, top_k=5)
+    
+    for idx, score in zip(indices, scores):
+        print("  [{:.1f}%] {}".format(score * 100, manager.df.iloc[idx]["filename"]))
