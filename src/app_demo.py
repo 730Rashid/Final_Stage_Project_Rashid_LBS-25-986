@@ -248,7 +248,7 @@ def overview_page():
                 ], md=8),
                 dbc.Col([
                     html.Div([
-                        html.H4("Technical Pipeline", className="paper-title mb-3"),
+                        html.H4("How it all works", className="paper-title mb-3"),
                         html.Div([
                             html.Div([
                                 html.Strong("1. Data Ingestion"),
@@ -387,7 +387,7 @@ navbar = dbc.NavbarSimple(
         dbc.NavItem(dbc.NavLink("Project Abstract", href="/", active="exact")),
         dbc.NavItem(dbc.NavLink("Data Explorer", href="/explorer", active="exact")),
     ],
-    brand="CrisisMMD Visualisation",
+    brand="Disaster Image Visualisation",
     brand_href="/",
     color="white",
     className="navbar-custom"

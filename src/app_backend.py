@@ -16,10 +16,13 @@ Project: Visualising Natural Disaster Image Embeddings
 import numpy as np
 import torch
 import json
+import threading
 import pandas as pd
 from pathlib import Path
 from typing import List, Tuple, Optional
 from sklearn.metrics.pairwise import cosine_similarity
+
+from utils.event_utils import EVENT_MAPPINGS, parse_event
 
 
 # Path Configuration
@@ -27,18 +30,6 @@ PROJECT_ROOT = Path(__file__).parent.parent
 DATA_PATH = PROJECT_ROOT / "data" / "visualisation" / "umap_data.json"
 EMBEDDINGS_PATH = PROJECT_ROOT / "data" / "embeddings" / "embeddings.npy"
 IMAGE_FOLDER = PROJECT_ROOT / "data" / "processed" / "clean_data"
-
-
-# Event Mappings
-EVENT_MAPPINGS = {
-    "california_wildfires": "California Wildfires",
-    "hurricane_harvey": "Hurricane Harvey",
-    "hurricane_irma": "Hurricane Irma",
-    "hurricane_maria": "Hurricane Maria",
-    "iraq_iran_earthquake": "Iraq-Iran Earthquake",
-    "mexico_earthquake": "Mexico Earthquake",
-    "srilanka_floods": "Sri Lanka Floods",
-}
 
 
 # Classification Labels
@@ -67,17 +58,6 @@ LABEL_DISPLAY_NAMES = {
     "fallen trees": "Trees",
     "emergency services": "Emergency"
 }
-
-
-def parse_event(path: str) -> str:
-    """Extract event name from folder structure."""
-    path = str(path).replace("\\", "/").lower()
-    
-    for key, label in EVENT_MAPPINGS.items():
-        if key in path:
-            return label
-    
-    return "Unknown Event"
 
 
 class CrisisDataManager:
@@ -179,6 +159,11 @@ class CrisisDataManager:
         """Load image embeddings."""
         try:
             self.embeddings = np.load(EMBEDDINGS_PATH)
+            if self.embeddings.ndim != 2 or self.embeddings.shape[1] != 512:
+                print("Error: Expected embeddings shape (N, 512), got {}".format(
+                    self.embeddings.shape
+                ))
+                return False
             print("Embeddings loaded: {}".format(self.embeddings.shape))
             return True
         except Exception as e:

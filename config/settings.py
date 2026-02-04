@@ -116,6 +116,23 @@ class Config:
         ]
     )
     
+    # Search & Classification Thresholds
+    SEARCH_MIN_THRESHOLD: float = 0.28
+    CLASSIFICATION_THRESHOLD: float = 0.22
+    SEARCH_MIN_QUERY_LENGTH: int = 3
+    SEARCH_MAX_QUERY_LENGTH: int = 200
+
+    # Privacy (Face Blurring)
+    FACE_BLUR_KERNEL: Tuple[int, int] = (99, 99)
+    FACE_BLUR_SIGMA: int = 30
+    FACE_BLUR_PADDING: float = 0.1
+    FACE_DETECT_SCALE_FACTOR: float = 1.05
+    FACE_DETECT_MIN_NEIGHBORS: int = 3
+    FACE_DETECT_MIN_SIZE: Tuple[int, int] = (20, 20)
+
+    # Vectorisation
+    VECTORISE_BATCH_SIZE: int = 32
+
     # Evaluation
     EVALUATION_METRICS: List[str] = field(
         default_factory=lambda: [
