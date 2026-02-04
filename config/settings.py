@@ -116,6 +116,9 @@ class Config:
         ]
     )
     
+    # Analytics
+    ANALYTICS_SAMPLE_SIZE: int = 500  # pairwise sim sampling per event
+
     # Search & Classification Thresholds
     SEARCH_MIN_THRESHOLD: float = 0.28
     CLASSIFICATION_THRESHOLD: float = 0.22

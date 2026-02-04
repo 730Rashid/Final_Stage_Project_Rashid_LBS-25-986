@@ -10,6 +10,7 @@ Project: Visualising Natural Disaster Image Embeddings
 """
 
 import sys
+import json
 import dash
 from dash import dcc, html, Input, Output, State, ctx
 import dash_bootstrap_components as dbc
@@ -32,6 +33,7 @@ from app_backend import (
     get_manager,
     get_dataframe,
     get_unique_events,
+    get_analytics,
     semantic_search,
     visual_search,
     classify_image,
@@ -387,11 +389,51 @@ def explorer_page():
     ], fluid=True, style={"maxWidth": "1400px"}, className="py-4")
 
 
+def analytics_page():
+    """Analytics dashboard for embedding space analysis."""
+    return dbc.Container([
+        # Page Header
+        html.Div([
+            html.H2("Embedding Space Analytics", className="mb-2"),
+            html.P(
+                "Quantitative analysis of the CLIP embedding space across disaster events.",
+                className="text-secondary mb-0"
+            )
+        ], className="paper-card mb-4"),
+
+        # Global Summary Stats
+        html.Div(id="analytics-summary", className="mb-4"),
+
+        # Tabs
+        dcc.Tabs(
+            id="analytics-tabs",
+            value="tab-events",
+            children=[
+                dcc.Tab(label="Event Statistics", value="tab-events",
+                        className="custom-tab", selected_className="custom-tab--selected"),
+                dcc.Tab(label="Embedding Space", value="tab-embedding",
+                        className="custom-tab", selected_className="custom-tab--selected"),
+                dcc.Tab(label="Export", value="tab-export",
+                        className="custom-tab", selected_className="custom-tab--selected"),
+            ],
+            className="mb-4"
+        ),
+
+        # Tab Content
+        html.Div(id="analytics-tab-content"),
+
+        # Hidden download component
+        dcc.Download(id="analytics-download"),
+
+    ], fluid=True, style={"maxWidth": "1200px"}, className="py-4")
+
+
 # Navigation
 navbar = dbc.NavbarSimple(
     children=[
         dbc.NavItem(dbc.NavLink("Project Abstract", href="/", active="exact")),
         dbc.NavItem(dbc.NavLink("Data Explorer", href="/explorer", active="exact")),
+        dbc.NavItem(dbc.NavLink("Analytics", href="/analytics", active="exact")),
     ],
     brand="Disaster Image Visualisation",
     brand_href="/",
@@ -415,6 +457,8 @@ app.layout = html.Div([
 def render_page(pathname):
     if pathname == "/explorer":
         return explorer_page()
+    elif pathname == "/analytics":
+        return analytics_page()
     return overview_page()
 
 
@@ -641,6 +685,225 @@ def update_view(n_clicks, n_submit, selected_event, clicked_index, query):
         image_grid = dbc.Row(final_grid, className="g-3")
 
     return fig, image_grid, status, gallery_title
+
+
+# Analytics Callbacks
+
+@app.callback(
+    Output("analytics-summary", "children"),
+    Input("url", "pathname")
+)
+def render_analytics_summary(pathname):
+    """Render global summary stat cards on the analytics page."""
+    if pathname != "/analytics":
+        return []
+
+    analytics = get_analytics()
+    summary = analytics.global_summary()
+
+    return html.Div([
+        dbc.Row([
+            dbc.Col([
+                html.Div([
+                    html.Div("{:,}".format(summary["total_images"]), className="stat-value"),
+                    html.Div("Total Images", className="stat-label")
+                ], className="stat-box")
+            ], width=3),
+            dbc.Col([
+                html.Div([
+                    html.Div(str(summary["embedding_dim"]), className="stat-value"),
+                    html.Div("Embedding Dimensions", className="stat-label")
+                ], className="stat-box")
+            ], width=3),
+            dbc.Col([
+                html.Div([
+                    html.Div("{:.3f}".format(summary["global_mean_similarity"]), className="stat-value"),
+                    html.Div("Mean Pairwise Similarity", className="stat-label")
+                ], className="stat-box")
+            ], width=3),
+            dbc.Col([
+                html.Div([
+                    html.Div("{:.3f}".format(summary["global_std_similarity"]), className="stat-value"),
+                    html.Div("Similarity Std Dev", className="stat-label")
+                ], className="stat-box")
+            ], width=3),
+        ])
+    ], className="paper-card")
+
+
+@app.callback(
+    Output("analytics-tab-content", "children"),
+    Input("analytics-tabs", "value")
+)
+def render_analytics_tab(tab):
+    """Render the selected analytics tab content."""
+    analytics = get_analytics()
+
+    if tab == "tab-events":
+        return _build_events_tab(analytics)
+    elif tab == "tab-embedding":
+        return _build_embedding_tab(analytics)
+    elif tab == "tab-export":
+        return _build_export_tab()
+    return []
+
+
+def _build_events_tab(analytics):
+    """Build the Event Statistics tab content."""
+    stats = analytics.per_event_stats()
+    events = list(stats.keys())
+    counts = [stats[e]["count"] for e in events]
+    cohesions = [stats[e]["cohesion"] for e in events]
+    spreads = [stats[e]["spread"] for e in events]
+
+    # Image count bar chart
+    count_fig = go.Figure(data=[
+        go.Bar(
+            x=events, y=counts,
+            marker_color="#2563eb",
+            text=counts, textposition="outside"
+        )
+    ])
+    count_fig.update_layout(
+        title="Image Count per Event",
+        plot_bgcolor="#ffffff", paper_bgcolor="#ffffff",
+        font=dict(family="IBM Plex Sans"),
+        margin=dict(l=40, r=20, t=50, b=80),
+        xaxis=dict(tickangle=-30),
+        yaxis=dict(title="Count", gridcolor="#f1f5f9")
+    )
+
+    # Cohesion bar chart
+    cohesion_fig = go.Figure(data=[
+        go.Bar(
+            x=events, y=cohesions,
+            marker_color="#16a34a",
+            text=["{:.4f}".format(c) for c in cohesions],
+            textposition="outside",
+            error_y=dict(type="data", array=spreads, visible=True, color="#94a3b8")
+        )
+    ])
+    cohesion_fig.update_layout(
+        title="Intra-Event Cohesion (Mean Pairwise Cosine Similarity)",
+        plot_bgcolor="#ffffff", paper_bgcolor="#ffffff",
+        font=dict(family="IBM Plex Sans"),
+        margin=dict(l=40, r=20, t=50, b=80),
+        xaxis=dict(tickangle=-30),
+        yaxis=dict(title="Cosine Similarity", gridcolor="#f1f5f9")
+    )
+
+    return html.Div([
+        dbc.Row([
+            dbc.Col([
+                html.Div([
+                    dcc.Graph(figure=count_fig, config={"displaylogo": False})
+                ], className="paper-card")
+            ], md=6),
+            dbc.Col([
+                html.Div([
+                    dcc.Graph(figure=cohesion_fig, config={"displaylogo": False})
+                ], className="paper-card")
+            ], md=6),
+        ], className="g-4")
+    ])
+
+
+def _build_embedding_tab(analytics):
+    """Build the Embedding Space tab content."""
+    # Inter-event similarity heatmap
+    matrix = analytics.inter_event_similarity_matrix()
+    events = analytics.events
+
+    heatmap_fig = go.Figure(data=go.Heatmap(
+        z=matrix,
+        x=events, y=events,
+        colorscale="Blues",
+        zmin=0.5, zmax=1.0,
+        text=[["{:.3f}".format(v) for v in row] for row in matrix],
+        texttemplate="%{text}",
+        textfont=dict(size=11),
+        hovertemplate="<b>%{x}</b> vs <b>%{y}</b><br>Similarity: %{z:.4f}<extra></extra>"
+    ))
+    heatmap_fig.update_layout(
+        title="Inter-Event Centroid Cosine Similarity",
+        plot_bgcolor="#ffffff", paper_bgcolor="#ffffff",
+        font=dict(family="IBM Plex Sans"),
+        margin=dict(l=120, r=20, t=50, b=120),
+        xaxis=dict(tickangle=-30),
+        yaxis=dict(autorange="reversed"),
+        width=600, height=500
+    )
+
+    # Intra-event box plots
+    distributions = analytics.intra_event_distributions()
+    box_fig = go.Figure()
+    colours = ["#2563eb", "#ea580c", "#16a34a", "#7c3aed", "#dc2626", "#0891b2", "#ca8a04"]
+    for i, event in enumerate(events):
+        box_fig.add_trace(go.Box(
+            y=distributions[event],
+            name=event,
+            marker_color=colours[i % len(colours)],
+            boxmean=True
+        ))
+    box_fig.update_layout(
+        title="Intra-Event Pairwise Similarity Distributions",
+        plot_bgcolor="#ffffff", paper_bgcolor="#ffffff",
+        font=dict(family="IBM Plex Sans"),
+        margin=dict(l=40, r=20, t=50, b=80),
+        yaxis=dict(title="Cosine Similarity", gridcolor="#f1f5f9"),
+        showlegend=False
+    )
+
+    return html.Div([
+        dbc.Row([
+            dbc.Col([
+                html.Div([
+                    dcc.Graph(figure=heatmap_fig, config={"displaylogo": False})
+                ], className="paper-card")
+            ], md=6),
+            dbc.Col([
+                html.Div([
+                    dcc.Graph(figure=box_fig, config={"displaylogo": False})
+                ], className="paper-card")
+            ], md=6),
+        ], className="g-4")
+    ])
+
+
+def _build_export_tab():
+    """Build the Export tab content."""
+    return html.Div([
+        html.Div([
+            html.H4("Export Analytics Report", className="paper-title mb-3"),
+            html.P(
+                "Download all embedding space analytics as a JSON report. "
+                "Includes per-event statistics, inter-event similarity matrix, "
+                "and global summary metrics.",
+                className="text-secondary"
+            ),
+            dbc.Button(
+                [html.I(className="bi bi-download me-2"), "Download JSON Report"],
+                id="btn-export-json",
+                className="btn-primary-action",
+                n_clicks=0
+            ),
+        ], className="paper-card", style={"maxWidth": "600px"})
+    ])
+
+
+@app.callback(
+    Output("analytics-download", "data"),
+    Input("btn-export-json", "n_clicks"),
+    prevent_initial_call=True
+)
+def download_analytics_report(n_clicks):
+    """Generate and send the analytics JSON report."""
+    analytics = get_analytics()
+    report = analytics.export_report()
+    return dcc.send_string(
+        json.dumps(report, indent=2),
+        filename="embedding_analytics_report.json"
+    )
 
 
 if __name__ == "__main__":

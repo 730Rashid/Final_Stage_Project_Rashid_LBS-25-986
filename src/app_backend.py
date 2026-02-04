@@ -80,6 +80,7 @@ class CrisisDataManager:
         self.clip_processor = None
         self.label_embeddings = None
         self.device = None
+        self.analytics = None
         self._loaded = False
     
     def load(self) -> bool:
@@ -277,6 +278,13 @@ class CrisisDataManager:
             top_indices = np.argsort(similarities)[::-1][:top_k]
             return top_indices, similarities[top_indices]
     
+    def get_analytics(self):
+        """Get or create the EmbeddingAnalytics instance (lazy-loaded)."""
+        if self.analytics is None:
+            from analytics import EmbeddingAnalytics
+            self.analytics = EmbeddingAnalytics(self.embeddings, self.df)
+        return self.analytics
+
     def classify_image(
         self,
         image_index: int,
@@ -352,6 +360,11 @@ def visual_search(image_index, subset_indices=None, top_k=50):
 def classify_image(image_index, threshold=0.20):
     """Convenience wrapper for image classification."""
     return get_manager().classify_image(image_index, threshold)
+
+
+def get_analytics():
+    """Convenience wrapper for embedding analytics."""
+    return get_manager().get_analytics()
 
 
 if __name__ == "__main__":

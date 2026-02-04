@@ -54,7 +54,7 @@ data/visualisation/*
 !data/embeddings/.gitkeep
 !data/visualisation/.gitkeep
 
-# CrisisMMD dataset (18k images - never commit)
+# CrisisMMD dataset 
 CrisisMMD_v2.0/
 data/raw/CrisisMMD_v2.0/
 
@@ -74,6 +74,7 @@ models/
 checkpoints/
 
 # IDE and Editor files
+.claude/
 .vscode/
 .idea/
 *.swp
@@ -171,3 +172,4 @@ cython_debug/
 # Project specific
 disaster_viz.log
 *.log.*
+nul

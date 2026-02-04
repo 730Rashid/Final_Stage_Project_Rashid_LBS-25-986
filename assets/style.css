@@ -308,6 +308,28 @@ p {
     font-size: 1.1rem;
 }
 
+/* 11. Analytics Tabs */
+.custom-tab {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-weight: 500;
+    font-size: 0.9rem;
+    color: var(--text-muted) !important;
+    border: none !important;
+    border-bottom: 2px solid transparent !important;
+    background: transparent !important;
+    padding: 10px 20px !important;
+}
+
+.custom-tab--selected {
+    color: var(--accent-secondary) !important;
+    border-bottom: 2px solid var(--accent-secondary) !important;
+    background: transparent !important;
+}
+
+.custom-tab:hover {
+    color: var(--text-primary) !important;
+}
+
 /* Footer */
 .footer-text {
     font-size: 0.85rem;
