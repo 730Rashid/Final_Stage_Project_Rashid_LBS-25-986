@@ -24,10 +24,11 @@ from transformers import CLIPProcessor, CLIPModel
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
+from config.settings import config
+
 # Configuration
 DATASET_PATH = PROJECT_ROOT / "data" / "processed" / "clean_data"
 OUTPUT_DIR = PROJECT_ROOT / "data" / "embeddings"
-BATCH_SIZE = 32  # Increased to 32 for GPU efficiency
 
 
 def load_model():
@@ -49,8 +50,8 @@ def find_images(root_dir):
     print("Step 2: Scanning for Images...")
     
     image_paths = []
-    extensions = {".jpg", ".jpeg", ".png"}
-    
+    extensions = set(config.IMAGE_EXTENSIONS)
+
     for root, dirs, files in os.walk(root_dir):
         for file in files:
             if Path(file).suffix.lower() in extensions:
@@ -62,15 +63,16 @@ def find_images(root_dir):
 
 def process_images(model, processor, device, image_paths):
     """Generate embeddings for all images."""
+    batch_size = config.VECTORISE_BATCH_SIZE
     print("Step 3: Generating Embeddings...")
-    print(f"  Batch size: {BATCH_SIZE}")
-    
+    print(f"  Batch size: {batch_size}")
+
     embeddings = []
     valid_paths = []
     corrupt_files = []
-    
-    for i in tqdm(range(0, len(image_paths), BATCH_SIZE), desc="  Processing"):
-        batch_paths = image_paths[i:i + BATCH_SIZE]
+
+    for i in tqdm(range(0, len(image_paths), batch_size), desc="  Processing"):
+        batch_paths = image_paths[i:i + batch_size]
         batch_images = []
         batch_valid_paths = []
         

@@ -26,6 +26,8 @@ from collections import defaultdict
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
+from config.settings import config
+
 
 # Configuration
 # Input folder containing raw CrisisMMD images, some of the images may have noise and some unrelated images that has nothing to do with Natural Disasters.
@@ -139,9 +141,11 @@ def clean_dataset():
     
     # Find all image files from all formats.
     image_files = []
-    
-    for ext in ["*.jpg", "*.jpeg", "*.png", "*.JPG", "*.JPEG", "*.PNG"]:
-        image_files.extend(RAW_DATA_PATH.rglob(ext))
+
+    for ext in config.IMAGE_EXTENSIONS:
+        # Search both lowercase and uppercase variants
+        image_files.extend(RAW_DATA_PATH.rglob("*{}".format(ext)))
+        image_files.extend(RAW_DATA_PATH.rglob("*{}".format(ext.upper())))
     
     total_images = len(image_files)
 

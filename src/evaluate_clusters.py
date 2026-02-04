@@ -33,44 +33,13 @@ from sklearn.preprocessing import LabelEncoder
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
+from utils.event_utils import parse_event
+
 
 # Paths
 UMAP_COORDS_PATH = PROJECT_ROOT / "data" / "visualisation" / "umap_coords.npy"
 FILENAMES_PATH = PROJECT_ROOT / "data" / "embeddings" / "filenames.json"
 OUTPUT_DIR = PROJECT_ROOT / "reports" / "metrics"
-
-
-def parse_event_from_path(filepath: str) -> str:
-    """
-    Extract the event type from an image file path.
-    
-    The CrisisMMD dataset has folder names like 'california_wildfires',
-    'hurricane_harvey', etc. This function parses those labels.
-    
-    Args:
-        filepath: Full path to the image file.
-        
-    Returns:
-        Human-readable event name (Example: 'California Wildfires').
-    """
-    path_str = str(filepath).replace("\\", "/").lower()
-    
-    # Event mapping based on CrisisMMD folder structure
-    event_mappings = {
-        "california_wildfires": "California Wildfires",
-        "hurricane_harvey": "Hurricane Harvey",
-        "hurricane_irma": "Hurricane Irma",
-        "hurricane_maria": "Hurricane Maria",
-        "iraq_iran_earthquake": "Iraq-Iran Earthquake",
-        "mexico_earthquake": "Mexico Earthquake",
-        "srilanka_floods": "Sri Lanka Floods",
-    }
-    
-    for key, label in event_mappings.items():
-        if key in path_str:
-            return label
-    
-    return "Unknown"
 
 
 def load_data():
@@ -95,7 +64,7 @@ def load_data():
         filenames = json.load(f)
     
     # Parse event labels
-    events = [parse_event_from_path(path) for path in filenames]
+    events = [parse_event(path) for path in filenames]
     print("  Extracted {} event labels".format(len(events)))
     
     return coords, events

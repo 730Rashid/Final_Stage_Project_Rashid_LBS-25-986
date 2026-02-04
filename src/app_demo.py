@@ -9,6 +9,7 @@ Supervisor: XinHui Ma
 Project: Visualising Natural Disaster Image Embeddings
 """
 
+import sys
 import dash
 from dash import dcc, html, Input, Output, State, ctx
 import dash_bootstrap_components as dbc
@@ -20,6 +21,11 @@ import io
 import os
 from pathlib import Path
 from flask import send_from_directory, request, Response
+
+# Add project root to path for config imports
+PROJECT_ROOT_PATH = Path(__file__).parent.parent
+sys.path.insert(0, str(PROJECT_ROOT_PATH))
+from config.settings import config
 
 # Import backend functions
 from app_backend import (
@@ -87,28 +93,28 @@ def serve_image(p):
         # Detect frontal faces (more aggressive params)
         frontal_faces = frontal_cascade.detectMultiScale(
             grey,
-            scaleFactor=1.05,  # Finer scale for better detection
-            minNeighbors=3,    # Lower threshold = more detections
-            minSize=(20, 20)
+            scaleFactor=config.FACE_DETECT_SCALE_FACTOR,
+            minNeighbors=config.FACE_DETECT_MIN_NEIGHBORS,
+            minSize=config.FACE_DETECT_MIN_SIZE
         )
         all_faces.extend(frontal_faces)
-        
+
         # Detect profile faces (left-facing)
         profile_faces = profile_cascade.detectMultiScale(
             grey,
-            scaleFactor=1.05,
-            minNeighbors=3,
-            minSize=(20, 20)
+            scaleFactor=config.FACE_DETECT_SCALE_FACTOR,
+            minNeighbors=config.FACE_DETECT_MIN_NEIGHBORS,
+            minSize=config.FACE_DETECT_MIN_SIZE
         )
         all_faces.extend(profile_faces)
-        
+
         # Detect profile faces (right-facing) by flipping image
         flipped = cv2.flip(grey, 1)
         flipped_profiles = profile_cascade.detectMultiScale(
             flipped,
-            scaleFactor=1.05,
-            minNeighbors=3,
-            minSize=(20, 20)
+            scaleFactor=config.FACE_DETECT_SCALE_FACTOR,
+            minNeighbors=config.FACE_DETECT_MIN_NEIGHBORS,
+            minSize=config.FACE_DETECT_MIN_SIZE
         )
         # Convert flipped coordinates back
         img_width = img.shape[1]
@@ -118,14 +124,14 @@ def serve_image(p):
         # Blur each detected face
         for (x, y, w, h) in all_faces:
             # Add padding to ensure full face coverage
-            pad = int(w * 0.1)
+            pad = int(w * config.FACE_BLUR_PADDING)
             x1 = max(0, x - pad)
             y1 = max(0, y - pad)
             x2 = min(img.shape[1], x + w + pad)
             y2 = min(img.shape[0], y + h + pad)
-            
+
             face_region = img[y1:y2, x1:x2]
-            blurred_face = cv2.GaussianBlur(face_region, (99, 99), 30)
+            blurred_face = cv2.GaussianBlur(face_region, config.FACE_BLUR_KERNEL, config.FACE_BLUR_SIGMA)
             img[y1:y2, x1:x2] = blurred_face
         
         # Encode to JPEG and return
@@ -143,9 +149,9 @@ def create_badge(label, confidence):
     score_pct = confidence * 100
     
     badge_class = "badge-academic"
-    if confidence >= 0.28:
+    if confidence >= config.SEARCH_MIN_THRESHOLD:
         badge_class += " badge-high"
-    elif confidence >= 0.24:
+    elif confidence >= config.SEARCH_MIN_THRESHOLD - 0.04:
         badge_class += " badge-mid"
 
     return html.Span(
@@ -438,7 +444,7 @@ def build_image_card(row, score, score_label="Match", privacy_mode=False):
         img_url = "{}?privacy=true".format(base_url) if privacy_mode else base_url
         
         image_idx = row["original_idx"]
-        classifications = classify_image(image_idx, threshold=0.22)
+        classifications = classify_image(image_idx, threshold=config.CLASSIFICATION_THRESHOLD)
         
         badge_elements = [create_badge(label, conf) for label, conf in classifications[:3]]
         
@@ -558,14 +564,14 @@ def update_view(n_clicks, n_submit, selected_event, clicked_index, query):
             if card:
                 images.append(card)
 
-    # Text Search 
-    elif query and len(query.strip()) > 2:
-        indices, scores = semantic_search(query.strip(), subset_indices=filtered_indices)
+    # Text Search
+    elif query and len(query.strip()) >= config.SEARCH_MIN_QUERY_LENGTH:
+        trimmed = query.strip()[:config.SEARCH_MAX_QUERY_LENGTH]
+        indices, scores = semantic_search(trimmed, subset_indices=filtered_indices)
         match_df = df.iloc[indices].copy()
         match_df["score"] = scores
-        
-        MIN_THRESHOLD = 0.28
-        strong_matches = match_df[match_df["score"] >= MIN_THRESHOLD]
+
+        strong_matches = match_df[match_df["score"] >= config.SEARCH_MIN_THRESHOLD]
         
         if len(strong_matches) > 0:
             fig.add_trace(go.Scattergl(
@@ -581,15 +587,15 @@ def update_view(n_clicks, n_submit, selected_event, clicked_index, query):
                 showlegend=False
             ))
             
-            status = "Found {} matches for '{}'.".format(len(strong_matches), query)
-            gallery_title = "Search Results: {}".format(query)
+            status = "Found {} matches for '{}'.".format(len(strong_matches), trimmed)
+            gallery_title = "Search Results: {}".format(trimmed)
             
             for _, row in strong_matches.head(10).iterrows():
                 card = build_image_card(row, row["score"], "Match", privacy_mode)
                 if card:
                     images.append(card)
         else:
-            status = "No significant matches found for '{}'.".format(query)
+            status = "No significant matches found for '{}'.".format(trimmed)
             gallery_title = "No Results"
             images.append(html.Div([
                 html.P("No images matched your query with sufficient confidence.", 

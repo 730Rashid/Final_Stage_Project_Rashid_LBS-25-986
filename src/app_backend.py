@@ -308,16 +308,18 @@ class CrisisDataManager:
         return results
 
 
-# Global instance
+# Global instance (thread-safe)
 _manager = None
+_lock = threading.Lock()
 
 
 def get_manager() -> CrisisDataManager:
-    """Get or create the global data manager."""
+    """Get or create the global data manager (thread-safe)."""
     global _manager
-    if _manager is None:
-        _manager = CrisisDataManager()
-        _manager.load()
+    with _lock:
+        if _manager is None:
+            _manager = CrisisDataManager()
+            _manager.load()
     return _manager
 
 
