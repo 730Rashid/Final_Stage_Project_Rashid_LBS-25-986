@@ -37,6 +37,7 @@ from app_backend import (
     semantic_search,
     visual_search,
     classify_image,
+    caption_image_by_index,
     CLASSIFICATION_LABELS,
     LABEL_DISPLAY_NAMES,
     PROJECT_ROOT,
@@ -479,23 +480,27 @@ def handle_click(click_data, clear_clicks):
 
 
 def build_image_card(row, score, score_label="Match", privacy_mode=False):
-    """Build an image card with classification badges."""
+    """Build an image card with classification badges and caption."""
     try:
         rel_path = Path(row["path"]).relative_to(IMAGE_FOLDER)
         base_url = "/images/{}".format(str(rel_path).replace(os.sep, "/"))
-        
+
         # Add privacy suffix if enabled
         img_url = "{}?privacy=true".format(base_url) if privacy_mode else base_url
-        
+
         image_idx = row["original_idx"]
         classifications = classify_image(image_idx, threshold=config.CLASSIFICATION_THRESHOLD)
-        
+
         badge_elements = [create_badge(label, conf) for label, conf in classifications[:3]]
-        
+
         score_color = "#16a34a" if score >= 0.30 else "#2563eb"
-        
+
+        # Generate caption using CLIP interrogation
+        caption_data = caption_image_by_index(image_idx, style="brief")
+        caption_text = caption_data.get("caption", "")
+
         return html.Div([
-            html.Img(src=img_url, className="w-100", 
+            html.Img(src=img_url, className="w-100",
                      style={"borderRadius": "4px 4px 0 0", "objectFit": "cover", "height": "120px"}),
             html.Div([
                 html.Small(row["event"], className="text-secondary d-block"),
@@ -503,7 +508,13 @@ def build_image_card(row, score, score_label="Match", privacy_mode=False):
                     "{}: {:.0f}%".format(score_label, score * 100),
                     style={"color": score_color, "fontWeight": "600"}
                 ),
-                html.Div(badge_elements, className="mt-2") if badge_elements else None
+                html.Div(badge_elements, className="mt-2") if badge_elements else None,
+                # Add caption below badges - styled to be subtle and readable
+                html.P(
+                    caption_text,
+                    className="mt-2 mb-0 small",
+                    style={"fontStyle": "italic", "color": "#64748b", "lineHeight": "1.4"}
+                ) if caption_text and caption_data.get("available") else None
             ], className="p-2", style={"borderTop": "1px solid #e2e8f0"})
         ], className="paper-card p-0 mb-3")
     except ValueError:

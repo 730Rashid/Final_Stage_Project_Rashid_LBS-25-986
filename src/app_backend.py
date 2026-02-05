@@ -81,6 +81,7 @@ class CrisisDataManager:
         self.label_embeddings = None
         self.device = None
         self.analytics = None
+        self.captioner = None  # Lazy-loaded CLIP interrogator
         self._loaded = False
     
     def load(self) -> bool:
@@ -285,6 +286,73 @@ class CrisisDataManager:
             self.analytics = EmbeddingAnalytics(self.embeddings, self.df)
         return self.analytics
 
+    def _get_captioner(self):
+        """Get or create the CLIP Interrogator (lazy-loaded)."""
+        if self.captioner is None:
+            try:
+                from clip_captioning import CLIPInterrogator
+                print("Initialising CLIP Interrogator for captioning...")
+                self.captioner = CLIPInterrogator(
+                    self.clip_model,
+                    self.clip_processor,
+                    self.device
+                )
+                print("CLIP Interrogator ready")
+            except Exception as e:
+                print("Failed to initialise CLIP Interrogator: {}".format(e))
+                self.captioner = None
+        return self.captioner
+
+    def caption_image(
+        self,
+        image_index: int,
+        style: str = "natural"
+    ) -> dict:
+        """
+        Generate a natural caption for an image using CLIP interrogation.
+
+        Args:
+            image_index: Index of the image to caption
+            style: Caption style - "natural" (full sentence) or "brief" (short)
+
+        Returns:
+            Dictionary with:
+                - caption: Natural language caption string
+                - details: Breakdown by category (scene, damage, objects, etc)
+                - available: Whether captioning succeeded
+        """
+        captioner = self._get_captioner()
+
+        if captioner is None:
+            return {
+                "caption": "Caption unavailable",
+                "details": {},
+                "available": False
+            }
+
+        try:
+            # Get the image embedding
+            image_embedding = self.embeddings[image_index]
+
+            # Interrogate and compose caption
+            interrogation = captioner.interrogate(image_embedding)
+            caption = captioner.compose_caption(interrogation, style)
+            breakdown = captioner.get_detailed_breakdown(interrogation)
+
+            return {
+                "caption": caption,
+                "details": breakdown,
+                "available": True
+            }
+
+        except Exception as e:
+            print("Failed to caption image {}: {}".format(image_index, e))
+            return {
+                "caption": "Caption generation failed",
+                "details": {},
+                "available": False
+            }
+
     def classify_image(
         self,
         image_index: int,
@@ -365,6 +433,11 @@ def classify_image(image_index, threshold=0.20):
 def get_analytics():
     """Convenience wrapper for embedding analytics."""
     return get_manager().get_analytics()
+
+
+def caption_image_by_index(image_index, style="natural"):
+    """Convenience wrapper for image captioning."""
+    return get_manager().caption_image(image_index, style)
 
 
 if __name__ == "__main__":
