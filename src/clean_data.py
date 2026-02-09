@@ -1,5 +1,5 @@
 """
-Data Cleaning Pipeline for CrisisMMD Dataset.
+Data Cleaning Preprocessing Pipeline for CrisisMMD Dataset.
 
 This script filters out corrupt, tiny, and irrelevant images before
 vectorisation. Running this first ensures that only high-quality images
@@ -234,6 +234,7 @@ def clean_dataset():
     )[:10]
     for cat, counts in sorted_cats:
         total = counts["valid"] + counts["skipped"]
+        
         if total > 0:
             pct = 100 * counts["valid"] / total
             print("  {}: {:,}/{:,} valid ({:.0f}%)".format(cat, counts["valid"], total, pct))

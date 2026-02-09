@@ -1,5 +1,5 @@
 """
-Vectorisation Pipeline for CrisisMMD Dataset (Hugging Face Version).
+Vectorisation Pipeline for CrisisMMD Dataset.
 
 This script generates 512-dimensional CLIP embeddings using the native
 Transformers library to ensure compatibility with the production app.

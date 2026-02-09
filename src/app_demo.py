@@ -139,6 +139,7 @@ def serve_image(p):
         
         # Encode to JPEG and return
         _, buffer = cv2.imencode('.jpg', img, [cv2.IMWRITE_JPEG_QUALITY, 90])
+
         return Response(buffer.tobytes(), mimetype='image/jpeg')
     
     # Standard serving without privacy
@@ -152,8 +153,10 @@ def create_badge(label, confidence):
     score_pct = confidence * 100
     
     badge_class = "badge-academic"
+    
     if confidence >= config.SEARCH_MIN_THRESHOLD:
         badge_class += " badge-high"
+
     elif confidence >= config.SEARCH_MIN_THRESHOLD - 0.04:
         badge_class += " badge-mid"
 
