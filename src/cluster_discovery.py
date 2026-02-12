@@ -181,46 +181,47 @@ def compute_cluster_centroids(
 
 def load_clip_model() -> Tuple[CLIPModel, CLIPProcessor, str]:
     """Load CLIP model for text encoding.
-    
+
     Returns:
         Tuple of (model, processor, device).
     """
     print("Loading CLIP model for cluster naming...")
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    
+
     model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32").to(device)
     processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
-    
+
     print("  Device: {}".format(device))
     return model, processor, device
 
 
 def encode_text_labels(
-    labels: List[str], 
-    model: CLIPModel, 
-    processor: CLIPProcessor, 
+    labels: List[str],
+    model: CLIPModel,
+    processor: CLIPProcessor,
     device: str
 ) -> np.ndarray:
     """Encode text labels using CLIP.
-    
+
     Args:
         labels: List of text descriptions.
         model: CLIP model.
         processor: CLIP processor.
         device: Device string.
-        
+
     Returns:
         Array of shape (len(labels), 512) with text embeddings.
     """
-    inputs = processor(text=labels, return_tensors="pt", padding=True).to(device)
-    
-    with torch.no_grad():
-        text_features = model.get_text_features(**inputs)
-    
-    # Convert to numpy first, then normalise using sklearn
-    text_np = text_features.cpu().numpy()
+    all_features = []
+    for label in labels:
+        inputs = processor(text=[label], return_tensors="pt", padding=True, truncation=True).to(device)
+        with torch.no_grad():
+            text_outputs = model.text_model(**inputs)
+            text_features = model.text_projection(text_outputs.pooler_output)
+        all_features.append(text_features.cpu().numpy())
+
+    text_np = np.vstack(all_features)
     text_np = normalize(text_np, norm='l2', axis=1)
-    
     return text_np
 
 
@@ -304,16 +305,17 @@ def save_results(
     cluster_stats = {}
     
     for cluster_id, count in label_counts.items():
-        if cluster_id == -1:
-            cluster_stats[-1] = {
+        key = int(cluster_id)
+        if key == -1:
+            cluster_stats[key] = {
                 "name": "Noise (Unclustered)",
-                "count": count,
+                "count": int(count),
                 "confidence": 0.0
             }
         else:
-            cluster_stats[cluster_id] = {
+            cluster_stats[key] = {
                 "name": cluster_names[cluster_id]["name"],
-                "count": count,
+                "count": int(count),
                 "confidence": cluster_names[cluster_id]["confidence"],
                 "alternatives": cluster_names[cluster_id]["alternatives"]
             }
@@ -323,7 +325,7 @@ def save_results(
         "generated_at": datetime.now().isoformat(),
         "total_images": len(labels),
         "n_clusters": len([k for k in label_counts.keys() if k != -1]),
-        "n_noise": label_counts.get(-1, 0),
+        "n_noise": int(label_counts.get(-1, 0)),
         "settings": {
             "min_cluster_size": config.HDBSCAN_MIN_CLUSTER_SIZE,
             "min_samples": config.HDBSCAN_MIN_SAMPLES,

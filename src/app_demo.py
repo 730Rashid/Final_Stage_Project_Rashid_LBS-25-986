@@ -86,69 +86,81 @@ server = app.server
 
 
 # Face Detection Setup
-# RetinaFace is loaded once and reused across requests for performance.
-# If it fails to load, we fall back to Haar cascades automatically.
-_retinaface_model = None
-_retinaface_available = None  # None = not yet checked, True/False = result
+# YuNet is OpenCV's built-in deep learning face detector (~230KB model).
+# It's loaded once and reused across all requests for performance.
+# If YuNet fails to load, we fall back to Haar cascades automatically.
+_yunet_detector = None
+_yunet_available = None  # None = not yet checked, True/False = result
 
 
-def _load_retinaface():
-    """Load the RetinaFace model once. Returns the model or None on failure."""
-    global _retinaface_model, _retinaface_available
+def _load_yunet():
+    """
+    Load the YuNet face detector once.
 
-    if _retinaface_available is not None:
-        return _retinaface_model
+    YuNet is a lightweight CNN-based face detector bundled with OpenCV.
+    It's much more accurate than Haar cascades while using minimal memory.
+    Returns the detector instance or None on failure.
+    """
+    global _yunet_detector, _yunet_available
+
+    if _yunet_available is not None:
+        return _yunet_detector
+
+    model_path = str(config.YUNET_MODEL_PATH)
+
+    if not config.YUNET_MODEL_PATH.exists():
+        print("YuNet model not found at {}, falling back to Haar cascades".format(model_path))
+        _yunet_available = False
+        return None
 
     try:
-        import os as _os
-        _os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
-        from retinaface import RetinaFace
-
-        # Build the model by running a dummy detection to trigger weight loading
-        RetinaFace.build_model()
-        _retinaface_model = RetinaFace
-        _retinaface_available = True
-        print("RetinaFace loaded successfully (deep learning face detection)")
+        # Create detector with a placeholder input size (updated per image later)
+        _yunet_detector = cv2.FaceDetectorYN.create(
+            model_path,
+            "",
+            (320, 320),
+            config.YUNET_CONFIDENCE_THRESHOLD,
+            config.YUNET_NMS_THRESHOLD,
+            5000
+        )
+        _yunet_available = True
+        print("YuNet face detector loaded (deep learning, ~230KB model)")
     except Exception as e:
-        print("RetinaFace unavailable, falling back to Haar cascades: {}".format(e))
-        _retinaface_model = None
-        _retinaface_available = False
+        print("YuNet unavailable, falling back to Haar cascades: {}".format(e))
+        _yunet_detector = None
+        _yunet_available = False
 
-    return _retinaface_model
+    return _yunet_detector
 
 
-def _detect_faces_retinaface(img):
+def _detect_faces_yunet(img):
     """
-    Detect faces using RetinaFace deep learning model.
+    Detect faces using YuNet deep learning model (built into OpenCV).
 
     Returns a list of (x, y, w, h) tuples for each detected face,
     matching the format used by the Haar cascade fallback.
-    Returns None if RetinaFace is unavailable (signals fallback to Haar).
+    Returns None if YuNet is unavailable (signals fallback to Haar).
     """
-    model = _load_retinaface()
-    if model is None:
-        return None  # Signal to use fallback
-
-    try:
-        detections = model.detect_faces(
-            img,
-            threshold=config.RETINAFACE_CONFIDENCE_THRESHOLD
-        )
-    except Exception as e:
-        # Memory errors or other issues - fall back gracefully
-        print("RetinaFace detection failed on image, using Haar fallback: {}".format(e))
+    detector = _load_yunet()
+    if detector is None:
         return None
 
-    # RetinaFace returns an empty tuple when no faces found
-    if not isinstance(detections, dict) or len(detections) == 0:
+    try:
+        h, w = img.shape[:2]
+        detector.setInputSize((w, h))
+        _, detections = detector.detect(img)
+    except Exception as e:
+        print("YuNet detection failed, using Haar fallback: {}".format(e))
+        return None
+
+    if detections is None or len(detections) == 0:
         return []
 
-    # Convert from RetinaFace format [x1, y1, x2, y2] to (x, y, w, h)
+    # YuNet returns [x, y, w, h, ..., score] per face (14 or 15 values)
     faces = []
-    for face_data in detections.values():
-        area = face_data["facial_area"]
-        x1, y1, x2, y2 = int(area[0]), int(area[1]), int(area[2]), int(area[3])
-        faces.append((x1, y1, x2 - x1, y2 - y1))
+    for face in detections:
+        x, y, fw, fh = int(face[0]), int(face[1]), int(face[2]), int(face[3])
+        faces.append((x, y, fw, fh))
 
     return faces
 
@@ -251,12 +263,12 @@ def serve_image(p):
     if img is None:
         return send_from_directory(str(path.parent), path.name)
 
-    # Detect faces - try RetinaFace first, fall back to Haar cascades
+    # Detect faces — try YuNet first, fall back to Haar cascades
     faces = None
-    if config.FACE_DETECT_MODEL == "retinaface":
-        faces = _detect_faces_retinaface(img)
+    if config.FACE_DETECT_MODEL == "yunet":
+        faces = _detect_faces_yunet(img)
 
-    # If RetinaFace was not available or not configured, use Haar cascades
+    # If YuNet was not available or not configured, use Haar cascades
     if faces is None:
         faces = _detect_faces_haar(img)
 

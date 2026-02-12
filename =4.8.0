@@ -1,0 +1,23 @@
+Collecting opencv-python-headless
+  Downloading opencv_python_headless-4.13.0.92-cp37-abi3-win_amd64.whl.metadata (20 kB)
+Collecting numpy>=2 (from opencv-python-headless)
+  Downloading numpy-2.4.2-cp311-cp311-win_amd64.whl.metadata (6.6 kB)
+Downloading opencv_python_headless-4.13.0.92-cp37-abi3-win_amd64.whl (40.1 MB)
+   ---------------------------------------- 40.1/40.1 MB 36.4 MB/s eta 0:00:00
+Downloading numpy-2.4.2-cp311-cp311-win_amd64.whl (12.6 MB)
+   ---------------------------------------- 12.6/12.6 MB 43.5 MB/s eta 0:00:00
+Installing collected packages: numpy, opencv-python-headless
+  Attempting uninstall: numpy
+    Found existing installation: numpy 2.3.4
+    Uninstalling numpy-2.3.4:
+      Successfully uninstalled numpy-2.3.4
+  Attempting uninstall: opencv-python-headless
+    Found existing installation: opencv-python-headless 4.13.0.90
+    Uninstalling opencv-python-headless-4.13.0.90:
+      Successfully uninstalled opencv-python-headless-4.13.0.90
+ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.
+numba 0.62.1 requires numpy<2.4,>=1.22, but you have numpy 2.4.2 which is incompatible.
+Successfully installed numpy-2.4.2 opencv-python-headless-4.13.0.92
+
+[notice] A new release of pip is available: 24.0 -> 26.0.1
+[notice] To update, run: python.exe -m pip install --upgrade pip

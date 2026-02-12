@@ -41,9 +41,10 @@ flask>=2.3.0
 tqdm>=4.65.0
 h5py>=3.9.0
 
-# --- Face Detection (RetinaFace) ---
-retina-face>=0.0.17
-tf-keras>=2.16.0
+# --- Face Detection ---
+# YuNet uses OpenCV's built-in DNN module (no extra packages needed).
+# The ONNX model file (~230KB) lives at data/models/face_detection_yunet_2023mar.onnx
+opencv-python-headless>=4.8.0
 
 # --- Development (Optional) ---
 # pytest>=7.4.0

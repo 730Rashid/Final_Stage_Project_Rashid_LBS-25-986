@@ -136,11 +136,13 @@ class Config:
     FACE_DETECT_MIN_NEIGHBORS: int = 3
     FACE_DETECT_MIN_SIZE: Tuple[int, int] = (20, 20)
 
-    # Privacy - RetinaFace (deep learning face detection)
-    # "retinaface" uses a deep learning model with much higher recall/precision
-    # "haar" falls back to Haar cascades (lightweight, no extra dependencies)
-    FACE_DETECT_MODEL: str = "retinaface"
-    RETINAFACE_CONFIDENCE_THRESHOLD: float = 0.9
+    # Privacy - YuNet Deep Learning Face Detection
+    # "yunet" uses OpenCV's built-in DNN face detector (fast, accurate, ~230KB model)
+    # "haar" falls back to Haar cascades (no model file needed)
+    FACE_DETECT_MODEL: str = "yunet"
+    YUNET_MODEL_PATH: Path = DATA_DIR / "models" / "face_detection_yunet_2023mar.onnx"
+    YUNET_CONFIDENCE_THRESHOLD: float = 0.7
+    YUNET_NMS_THRESHOLD: float = 0.3
     FACE_CACHE_DIR: Path = DATA_DIR / "cache" / "blurred"
 
     # Vectorisation
