@@ -84,8 +84,11 @@ class Config:
     PCA_WHITEN: bool = False
     
     # Clustering (HDBSCAN)
-    HDBSCAN_MIN_CLUSTER_SIZE: int = 10
-    HDBSCAN_MIN_SAMPLES: int = 5
+    # min_cluster_size: minimum number of samples in a cluster (higher = fewer, larger clusters)
+    # min_samples: core sample density threshold (higher = stricter core definition)
+    
+    HDBSCAN_MIN_CLUSTER_SIZE: int = 50
+    HDBSCAN_MIN_SAMPLES: int = 10
     HDBSCAN_METRIC: str = "euclidean"
     HDBSCAN_CLUSTER_SELECTION_METHOD: str = "eom"
 
@@ -125,7 +128,7 @@ class Config:
     SEARCH_MIN_QUERY_LENGTH: int = 3
     SEARCH_MAX_QUERY_LENGTH: int = 200
 
-    # Privacy (Face Blurring)
+    # Privacy - Face Blurring
     FACE_BLUR_KERNEL: Tuple[int, int] = (99, 99)
     FACE_BLUR_SIGMA: int = 30
     FACE_BLUR_PADDING: float = 0.1

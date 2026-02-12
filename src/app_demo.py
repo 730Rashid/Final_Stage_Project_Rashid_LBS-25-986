@@ -51,6 +51,26 @@ df = get_dataframe()
 UNIQUE_EVENTS = get_unique_events()
 
 
+# Load cluster data if available
+CLUSTER_LABELS_PATH = PROJECT_ROOT / "data" / "visualisation" / "cluster_labels.npy"
+CLUSTER_METADATA_PATH = PROJECT_ROOT / "data" / "visualisation" / "cluster_metadata.json"
+
+cluster_labels = None
+cluster_metadata = None
+
+if CLUSTER_LABELS_PATH.exists() and CLUSTER_METADATA_PATH.exists():
+    try:
+        cluster_labels = np.load(CLUSTER_LABELS_PATH)
+        with open(CLUSTER_METADATA_PATH, "r") as f:
+            cluster_metadata = json.load(f)
+        df["cluster_id"] = cluster_labels
+        print("Loaded cluster data: {} clusters".format(cluster_metadata["n_clusters"]))
+    except Exception as e:
+        print("Warning: Could not load cluster data: {}".format(e))
+        cluster_labels = None
+        cluster_metadata = None
+
+
 # Flask App
 BOOTSTRAP_ICONS = "https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
 ASSETS_PATH = str(PROJECT_ROOT / "assets")
@@ -313,6 +333,14 @@ def overview_page():
 
 def explorer_page():
     """Interactive explorer page."""
+    # Build cluster filter options if clusters are available
+    cluster_options = [{"label": "All Clusters", "value": "all"}]
+    if cluster_metadata is not None:
+        for cluster_id, info in cluster_metadata.get("clusters", {}).items():
+            cluster_id_int = int(cluster_id)
+            label = "{} ({})".format(info["name"], info["count"])
+            cluster_options.append({"label": label, "value": cluster_id_int})
+    
     return dbc.Container([
         # Controls
         html.Div([
@@ -328,6 +356,18 @@ def explorer_page():
                         className="dash-dropdown"
                     )
                 ], md=3),
+                # Discovered Clusters filter (only if clusters are loaded)
+                dbc.Col([
+                    dbc.Label("Discovered Cluster", className="small text-secondary fw-bold"),
+                    dcc.Dropdown(
+                        id="cluster-filter",
+                        options=cluster_options,
+                        value="all",
+                        clearable=False,
+                        className="dash-dropdown",
+                        disabled=(cluster_metadata is None)
+                    )
+                ], md=2) if cluster_metadata is not None else dbc.Col([], md=2),
                 dbc.Col([
                     dbc.Label("Semantic Query", className="small text-secondary fw-bold"),
                     dbc.InputGroup([
@@ -342,11 +382,11 @@ def explorer_page():
                         dbc.Button("Search", id="search-btn", n_clicks=0, className="btn-primary-action"),
                         dbc.Button("Clear", id="clear-btn", n_clicks=0, color="link", className="text-secondary")
                     ])
-                ], md=6),
+                ], md=5),
                 dbc.Col([
                     dbc.Label("System Status", className="small text-secondary fw-bold"),
                     html.Div(id="search-status", className="text-secondary small pt-2")
-                ], md=3)
+                ], md=2)
             ], align="start", className="g-4")
         ], className="paper-card mb-4 py-3"),
         
@@ -535,11 +575,12 @@ def build_image_card(row, score, score_label="Match", privacy_mode=False):
         Input("search-btn", "n_clicks"),
         Input("search-input", "n_submit"),
         Input("event-filter", "value"),
+        Input("cluster-filter", "value"),
         Input("clicked-point-store", "data")
     ],
     [State("search-input", "value")]
 )
-def update_view(n_clicks, n_submit, selected_event, clicked_index, query):
+def update_view(n_clicks, n_submit, selected_event, selected_cluster, clicked_index, query):
     """Update the visualisation based on user interaction."""
     # Privacy is always enabled
     privacy_mode = True
@@ -548,16 +589,33 @@ def update_view(n_clicks, n_submit, selected_event, clicked_index, query):
     status = "Ready"
     gallery_title = "Results"
     
+    # Start with full dataframe
+    working_df = df.copy()
+    filter_parts = []
+    
+    # Apply event filter
     if selected_event and selected_event != "all":
-        event_mask = df["event"] == selected_event
-        filtered_df = df[event_mask]
-        ghosted_df = df[~event_mask]
-        filtered_indices = filtered_df["original_idx"].tolist()
-        status = "{:,} images in {}".format(len(filtered_df), selected_event)
+        working_df = working_df[working_df["event"] == selected_event]
+        filter_parts.append(selected_event)
+    
+    # Apply cluster filter
+    if selected_cluster is not None and selected_cluster != "all" and "cluster_id" in df.columns:
+        working_df = working_df[working_df["cluster_id"] == selected_cluster]
+        if cluster_metadata:
+            cluster_info = cluster_metadata.get("clusters", {}).get(str(selected_cluster), {})
+            cluster_name = cluster_info.get("name", "Cluster {}".format(selected_cluster))
+            filter_parts.append(cluster_name)
+    
+    # Create ghosted dataframe (points not in current filter)
+    filtered_indices_set = set(working_df.index)
+    ghosted_df = df[~df.index.isin(filtered_indices_set)]
+    filtered_df = working_df
+    filtered_indices = filtered_df["original_idx"].tolist() if len(filtered_df) < len(df) else None
+    
+    # Build status message
+    if filter_parts:
+        status = "{:,} images in {}".format(len(filtered_df), " ∩ ".join(filter_parts))
     else:
-        filtered_df = df
-        ghosted_df = pd.DataFrame()
-        filtered_indices = None
         status = "{:,} images".format(len(df))
     
     # Ghost layer

@@ -21,6 +21,7 @@ import numpy as np
 from pathlib import Path
 from datetime import datetime
 from collections import Counter
+from typing import Tuple, List, Dict, Any, Optional
 from sklearn.metrics import (
     silhouette_score,
     davies_bouldin_score,
@@ -42,8 +43,12 @@ FILENAMES_PATH = PROJECT_ROOT / "data" / "embeddings" / "filenames.json"
 OUTPUT_DIR = PROJECT_ROOT / "reports" / "metrics"
 
 
-def load_data():
-    """Load UMAP coordinates and extract event labels from filenames."""
+def load_data() -> Tuple[Optional[np.ndarray], Optional[List[str]]]:
+    """Load UMAP coordinates and extract event labels from filenames.
+    
+    Returns:
+        Tuple of (coordinates array, event labels list) or (None, None) if not found.
+    """
     print("Loading data...")
     
     # Load 2D coordinates
@@ -135,8 +140,21 @@ def calculate_metrics(coords: np.ndarray, labels: list) -> dict:
     return metrics, encoder.classes_
 
 
-def generate_report(metrics: dict, events: list, classes: np.ndarray):
-    """Generate and save the evaluation report."""
+def generate_report(
+    metrics: Dict[str, Any], 
+    events: List[str], 
+    classes: np.ndarray
+) -> Dict[str, Any]:
+    """Generate and save the evaluation report.
+    
+    Args:
+        metrics: Dictionary of calculated metrics.
+        events: List of event labels.
+        classes: Array of unique class names.
+        
+    Returns:
+        Complete report dictionary.
+    """
     print("\nGenerating evaluation report...")
     
     # Count samples per class
@@ -186,8 +204,8 @@ def generate_report(metrics: dict, events: list, classes: np.ndarray):
     return report
 
 
-def main():
-    """Main entry point."""
+def main() -> None:
+    """Main entry point for cluster evaluation."""
     print("UMAP Cluster Evaluation Pipeline")
     print("Timestamp: {}".format(datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     print("")

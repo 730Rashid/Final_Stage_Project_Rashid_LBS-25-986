@@ -15,7 +15,9 @@ Project: Visualising Natural Disaster Image Embeddings
 import sys
 import json
 import numpy as np
+import pandas as pd
 from pathlib import Path
+from typing import Dict, List, Any, Optional
 from sklearn.metrics.pairwise import cosine_similarity
 
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -26,8 +28,10 @@ from config.settings import config
 class EmbeddingAnalytics:
     """Analyse the CLIP embedding space across disaster events."""
 
-    def __init__(self, embeddings, df):
+    def __init__(self, embeddings: np.ndarray, df: pd.DataFrame) -> None:
         """
+        Initialise the analytics engine.
+        
         Args:
             embeddings: np.ndarray of shape (N, 512), L2-normalised CLIP embeddings.
             df: pd.DataFrame with columns including 'event' and 'original_idx'.
@@ -35,20 +39,20 @@ class EmbeddingAnalytics:
         self.embeddings = embeddings
         self.df = df
         self.events = sorted(df["event"].unique())
-        self._cache = {}
+        self._cache: Dict[str, Any] = {}
 
-    def _get_event_embeddings(self, event):
+    def _get_event_embeddings(self, event: str) -> np.ndarray:
         """Get embeddings for a single event."""
         mask = self.df["event"] == event
         indices = self.df.loc[mask, "original_idx"].values
         return self.embeddings[indices]
 
-    def per_event_stats(self):
+    def per_event_stats(self) -> Dict[str, Dict[str, float]]:
         """
         Compute per-event statistics.
 
         Returns:
-            dict mapping event name to {count, cohesion, spread}.
+            Dict mapping event name to {count, cohesion, spread}.
             Cohesion = mean pairwise cosine similarity (sampled).
             Spread = std of pairwise cosine similarities.
         """
@@ -88,12 +92,12 @@ class EmbeddingAnalytics:
         self._cache["per_event_stats"] = stats
         return stats
 
-    def inter_event_similarity_matrix(self):
+    def inter_event_similarity_matrix(self) -> np.ndarray:
         """
         Compute centroid-to-centroid cosine similarity between all events.
 
         Returns:
-            np.ndarray of shape (7, 7) with cosine similarities.
+            np.ndarray of shape (num_events, num_events) with cosine similarities.
         """
         if "inter_event_matrix" in self._cache:
             return self._cache["inter_event_matrix"]
@@ -112,12 +116,12 @@ class EmbeddingAnalytics:
         self._cache["inter_event_matrix"] = matrix
         return matrix
 
-    def intra_event_distributions(self):
+    def intra_event_distributions(self) -> Dict[str, List[float]]:
         """
         Get sampled pairwise similarity distributions per event for box plots.
 
         Returns:
-            dict mapping event name to list of float similarity values.
+            Dict mapping event name to list of float similarity values.
         """
         if "intra_distributions" in self._cache:
             return self._cache["intra_distributions"]
@@ -154,12 +158,12 @@ class EmbeddingAnalytics:
         self._cache["intra_distributions"] = distributions
         return distributions
 
-    def global_summary(self):
+    def global_summary(self) -> Dict[str, Any]:
         """
         Compute global embedding space statistics.
 
         Returns:
-            dict with mean, std, min, max of sampled pairwise similarities.
+            Dict with mean, std, min, max of sampled pairwise similarities.
         """
         if "global_summary" in self._cache:
             return self._cache["global_summary"]
@@ -189,12 +193,12 @@ class EmbeddingAnalytics:
         self._cache["global_summary"] = summary
         return summary
 
-    def export_report(self):
+    def export_report(self) -> Dict[str, Any]:
         """
         Bundle all analytics into a JSON-serialisable dict.
 
         Returns:
-            dict with all analytics results.
+            Dict with all analytics results.
         """
         matrix = self.inter_event_similarity_matrix()
 

@@ -16,31 +16,28 @@ import umap
 import json
 from pathlib import Path
 from datetime import datetime
+from typing import Tuple, List, Optional
 
 
 # Add project root to path
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
+from config.settings import config
 
-# Configuration
+
+# Paths
 EMBEDDINGS_PATH = PROJECT_ROOT / "data" / "embeddings" / "embeddings.npy"
 FILENAMES_PATH = PROJECT_ROOT / "data" / "embeddings" / "filenames.json"
 OUTPUT_DIR = PROJECT_ROOT / "data" / "visualisation"
 
-# UMAP parameters
-# n_neighbors: higher values preserve more global structure
-# min_dist: lower values create tighter clusters
-# metric: cosine is appropriate for normalised CLIP embeddings
-N_NEIGHBORS = 15
-MIN_DIST = 0.1
-METRIC = "cosine"
-N_COMPONENTS = 2
-RANDOM_STATE = 42
 
-
-def load_embeddings():
-    """Load the CLIP embeddings from disk."""
+def load_embeddings() -> Tuple[Optional[np.ndarray], Optional[List[str]]]:
+    """Load the CLIP embeddings from disk.
+    
+    Returns:
+        Tuple of (embeddings array, filenames list) or (None, None) if not found.
+    """
     print("Loading embeddings from: {}".format(EMBEDDINGS_PATH))
     
     if not EMBEDDINGS_PATH.exists():
@@ -63,7 +60,7 @@ def load_embeddings():
     return embeddings, filenames
 
 
-def run_umap(embeddings):
+def run_umap(embeddings: np.ndarray) -> np.ndarray:
     """
     Apply UMAP dimensionality reduction.
     
@@ -74,18 +71,18 @@ def run_umap(embeddings):
         Array of shape (N, 2) containing 2D coordinates.
     """
     print("Running UMAP reduction...")
-    print("  n_neighbors: {}".format(N_NEIGHBORS))
-    print("  min_dist: {}".format(MIN_DIST))
-    print("  metric: {}".format(METRIC))
+    print("  n_neighbors: {}".format(config.UMAP_N_NEIGHBOURS))
+    print("  min_dist: {}".format(config.UMAP_MIN_DIST))
+    print("  metric: {}".format(config.UMAP_METRIC))
     
     start_time = datetime.now()
     
     reducer = umap.UMAP(
-        n_neighbors=N_NEIGHBORS,
-        min_dist=MIN_DIST,
-        n_components=N_COMPONENTS,
-        metric=METRIC,
-        random_state=RANDOM_STATE,
+        n_neighbors=config.UMAP_N_NEIGHBOURS,
+        min_dist=config.UMAP_MIN_DIST,
+        n_components=config.UMAP_N_COMPONENTS,
+        metric=config.UMAP_METRIC,
+        random_state=config.UMAP_RANDOM_STATE,
         verbose=True
     )
     
@@ -97,8 +94,13 @@ def run_umap(embeddings):
     return coords
 
 
-def save_results(coords, filenames):
-    """Save the 2D coordinates to disk."""
+def save_results(coords: np.ndarray, filenames: Optional[List[str]]) -> None:
+    """Save the 2D coordinates to disk.
+    
+    Args:
+        coords: 2D UMAP coordinates of shape (N, 2).
+        filenames: Optional list of source filenames.
+    """
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     
     # Save coordinates as numpy array
@@ -126,10 +128,10 @@ def save_results(coords, filenames):
     metadata = {
         "generated_at": datetime.now().isoformat(),
         "n_samples": len(coords),
-        "n_neighbors": N_NEIGHBORS,
-        "min_dist": MIN_DIST,
-        "metric": METRIC,
-        "random_state": RANDOM_STATE
+        "n_neighbors": config.UMAP_N_NEIGHBOURS,
+        "min_dist": config.UMAP_MIN_DIST,
+        "metric": config.UMAP_METRIC,
+        "random_state": config.UMAP_RANDOM_STATE
     }
     
     metadata_path = OUTPUT_DIR / "umap_metadata.json"

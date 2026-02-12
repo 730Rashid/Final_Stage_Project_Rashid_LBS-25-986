@@ -11,9 +11,9 @@ Supervisor: XinHui Ma
 Project: Visualising Natural Disaster Image Embeddings
 """
 
-import os
 import sys
 from pathlib import Path
+from typing import Tuple, List, Dict, Any
 from PIL import Image
 from tqdm import tqdm
 import shutil
@@ -51,7 +51,7 @@ MIN_ASPECT_RATIO = 0.25
 MIN_FILE_SIZE = 5000
 
 
-def setup_folders():
+def setup_folders() -> None:
     """
     Create the output directory if it does not exist.
     """
@@ -60,7 +60,7 @@ def setup_folders():
         print("  Created output folder: {}".format(CLEAN_DATA_PATH))
 
 
-def is_valid_image(file_path):
+def is_valid_image(file_path: Path) -> Tuple[bool, str]:
     """
     Check if an image file meets our quality requirements.
     
@@ -74,8 +74,8 @@ def is_valid_image(file_path):
         file_path: Path to the image file.
         
     Returns:
-        tuple: (is_valid, reason) where is_valid is a boolean and
-               reason is a string explaining why it was rejected.
+        Tuple of (is_valid, reason) where is_valid is a boolean and
+        reason is a string explaining why it was rejected.
     """
     path = Path(file_path)
     
@@ -116,7 +116,7 @@ def is_valid_image(file_path):
     return True, "Valid"
 
 
-def clean_dataset():
+def clean_dataset() -> None:
     """
     Main cleaning function.
     
