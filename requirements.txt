@@ -41,6 +41,10 @@ flask>=2.3.0
 tqdm>=4.65.0
 h5py>=3.9.0
 
+# --- Face Detection (RetinaFace) ---
+retina-face>=0.0.17
+tf-keras>=2.16.0
+
 # --- Development (Optional) ---
 # pytest>=7.4.0
 # black>=23.0.0

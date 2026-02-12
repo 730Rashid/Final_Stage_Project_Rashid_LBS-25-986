@@ -352,7 +352,9 @@ class CLIPInterrogator:
         }
 
         for category, (phrase, confidence) in interrogation_result.items():
+            
             display_name = category_names.get(category, category)
+            
             breakdown[display_name] = {
                 "phrase": phrase.capitalize(),
                 "confidence": confidence,

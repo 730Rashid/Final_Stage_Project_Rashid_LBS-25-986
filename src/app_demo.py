@@ -18,6 +18,7 @@ import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
 import cv2
+import hashlib
 import io
 import os
 from pathlib import Path
@@ -84,86 +85,197 @@ app = dash.Dash(
 server = app.server
 
 
+# Face Detection Setup
+# RetinaFace is loaded once and reused across requests for performance.
+# If it fails to load, we fall back to Haar cascades automatically.
+_retinaface_model = None
+_retinaface_available = None  # None = not yet checked, True/False = result
+
+
+def _load_retinaface():
+    """Load the RetinaFace model once. Returns the model or None on failure."""
+    global _retinaface_model, _retinaface_available
+
+    if _retinaface_available is not None:
+        return _retinaface_model
+
+    try:
+        import os as _os
+        _os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+        from retinaface import RetinaFace
+
+        # Build the model by running a dummy detection to trigger weight loading
+        RetinaFace.build_model()
+        _retinaface_model = RetinaFace
+        _retinaface_available = True
+        print("RetinaFace loaded successfully (deep learning face detection)")
+    except Exception as e:
+        print("RetinaFace unavailable, falling back to Haar cascades: {}".format(e))
+        _retinaface_model = None
+        _retinaface_available = False
+
+    return _retinaface_model
+
+
+def _detect_faces_retinaface(img):
+    """
+    Detect faces using RetinaFace deep learning model.
+
+    Returns a list of (x, y, w, h) tuples for each detected face,
+    matching the format used by the Haar cascade fallback.
+    Returns None if RetinaFace is unavailable (signals fallback to Haar).
+    """
+    model = _load_retinaface()
+    if model is None:
+        return None  # Signal to use fallback
+
+    try:
+        detections = model.detect_faces(
+            img,
+            threshold=config.RETINAFACE_CONFIDENCE_THRESHOLD
+        )
+    except Exception as e:
+        # Memory errors or other issues - fall back gracefully
+        print("RetinaFace detection failed on image, using Haar fallback: {}".format(e))
+        return None
+
+    # RetinaFace returns an empty tuple when no faces found
+    if not isinstance(detections, dict) or len(detections) == 0:
+        return []
+
+    # Convert from RetinaFace format [x1, y1, x2, y2] to (x, y, w, h)
+    faces = []
+    for face_data in detections.values():
+        area = face_data["facial_area"]
+        x1, y1, x2, y2 = int(area[0]), int(area[1]), int(area[2]), int(area[3])
+        faces.append((x1, y1, x2 - x1, y2 - y1))
+
+    return faces
+
+
+def _detect_faces_haar(img):
+    """
+    Detect faces using Haar cascades (lightweight fallback).
+
+    Checks frontal faces and both left/right profile faces.
+    Returns a list of (x, y, w, h) tuples.
+    """
+    grey = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+    frontal_cascade = cv2.CascadeClassifier(
+        cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+    )
+    profile_cascade = cv2.CascadeClassifier(
+        cv2.data.haarcascades + "haarcascade_profileface.xml"
+    )
+
+    all_faces = []
+
+    # Frontal faces
+    frontal = frontal_cascade.detectMultiScale(
+        grey,
+        scaleFactor=config.FACE_DETECT_SCALE_FACTOR,
+        minNeighbors=config.FACE_DETECT_MIN_NEIGHBORS,
+        minSize=config.FACE_DETECT_MIN_SIZE
+    )
+    all_faces.extend(frontal)
+
+    # Left-facing profiles
+    profiles = profile_cascade.detectMultiScale(
+        grey,
+        scaleFactor=config.FACE_DETECT_SCALE_FACTOR,
+        minNeighbors=config.FACE_DETECT_MIN_NEIGHBORS,
+        minSize=config.FACE_DETECT_MIN_SIZE
+    )
+    all_faces.extend(profiles)
+
+    # Right-facing profiles (detect on flipped image, then mirror coords back)
+    flipped = cv2.flip(grey, 1)
+    flipped_profiles = profile_cascade.detectMultiScale(
+        flipped,
+        scaleFactor=config.FACE_DETECT_SCALE_FACTOR,
+        minNeighbors=config.FACE_DETECT_MIN_NEIGHBORS,
+        minSize=config.FACE_DETECT_MIN_SIZE
+    )
+    img_width = img.shape[1]
+    for (x, y, w, h) in flipped_profiles:
+        all_faces.append((img_width - x - w, y, w, h))
+
+    return all_faces
+
+
+def _blur_faces(img, faces):
+    """Apply Gaussian blur to each detected face region in the image."""
+    for (x, y, w, h) in faces:
+        # Add padding around the face for complete coverage
+        pad = int(w * config.FACE_BLUR_PADDING)
+        x1 = max(0, x - pad)
+        y1 = max(0, y - pad)
+        x2 = min(img.shape[1], x + w + pad)
+        y2 = min(img.shape[0], y + h + pad)
+
+        face_region = img[y1:y2, x1:x2]
+        img[y1:y2, x1:x2] = cv2.GaussianBlur(
+            face_region, config.FACE_BLUR_KERNEL, config.FACE_BLUR_SIGMA
+        )
+
+    return img
+
+
+def _get_cache_path(image_path):
+    """Generate a unique cache path for a blurred image based on its file path."""
+    path_hash = hashlib.md5(str(image_path).encode()).hexdigest()
+    return config.FACE_CACHE_DIR / "{}.jpg".format(path_hash)
+
+
 @server.route("/images/<path:p>")
 def serve_image(p):
     """Serve images from the data folder, with optional privacy blur."""
     path = IMAGE_FOLDER / p
     if not path.exists():
         return "Not found", 404
-    
+
     # Check if privacy mode is enabled
-    privacy_mode = request.args.get('privacy', 'false').lower() == 'true'
-    
-    if privacy_mode:
-        # Load image with OpenCV
-        img = cv2.imread(str(path))
-        if img is None:
-            return send_from_directory(str(path.parent), path.name)
-        
-        # Convert to grayscale for face detection
-        grey = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        
-        # Load multiple Haar Cascades for better detection
-        frontal_cascade = cv2.CascadeClassifier(
-            cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
-        )
-        profile_cascade = cv2.CascadeClassifier(
-            cv2.data.haarcascades + 'haarcascade_profileface.xml'
-        )
-        
-        all_faces = []
-        
-        # Detect frontal faces (more aggressive params)
-        frontal_faces = frontal_cascade.detectMultiScale(
-            grey,
-            scaleFactor=config.FACE_DETECT_SCALE_FACTOR,
-            minNeighbors=config.FACE_DETECT_MIN_NEIGHBORS,
-            minSize=config.FACE_DETECT_MIN_SIZE
-        )
-        all_faces.extend(frontal_faces)
+    privacy_mode = request.args.get("privacy", "false").lower() == "true"
 
-        # Detect profile faces (left-facing)
-        profile_faces = profile_cascade.detectMultiScale(
-            grey,
-            scaleFactor=config.FACE_DETECT_SCALE_FACTOR,
-            minNeighbors=config.FACE_DETECT_MIN_NEIGHBORS,
-            minSize=config.FACE_DETECT_MIN_SIZE
-        )
-        all_faces.extend(profile_faces)
+    if not privacy_mode:
+        return send_from_directory(str(path.parent), path.name)
 
-        # Detect profile faces (right-facing) by flipping image
-        flipped = cv2.flip(grey, 1)
-        flipped_profiles = profile_cascade.detectMultiScale(
-            flipped,
-            scaleFactor=config.FACE_DETECT_SCALE_FACTOR,
-            minNeighbors=config.FACE_DETECT_MIN_NEIGHBORS,
-            minSize=config.FACE_DETECT_MIN_SIZE
-        )
-        # Convert flipped coordinates back
-        img_width = img.shape[1]
-        for (x, y, w, h) in flipped_profiles:
-            all_faces.append((img_width - x - w, y, w, h))
-        
-        # Blur each detected face
-        for (x, y, w, h) in all_faces:
-            # Add padding to ensure full face coverage
-            pad = int(w * config.FACE_BLUR_PADDING)
-            x1 = max(0, x - pad)
-            y1 = max(0, y - pad)
-            x2 = min(img.shape[1], x + w + pad)
-            y2 = min(img.shape[0], y + h + pad)
+    # Check the cache first to avoid re-detecting and re-blurring
+    cache_path = _get_cache_path(path)
+    if cache_path.exists():
+        return send_from_directory(str(cache_path.parent), cache_path.name)
 
-            face_region = img[y1:y2, x1:x2]
-            blurred_face = cv2.GaussianBlur(face_region, config.FACE_BLUR_KERNEL, config.FACE_BLUR_SIGMA)
-            img[y1:y2, x1:x2] = blurred_face
-        
-        # Encode to JPEG and return
-        _, buffer = cv2.imencode('.jpg', img, [cv2.IMWRITE_JPEG_QUALITY, 90])
+    # Load image with OpenCV
+    img = cv2.imread(str(path))
+    if img is None:
+        return send_from_directory(str(path.parent), path.name)
 
-        return Response(buffer.tobytes(), mimetype='image/jpeg')
-    
-    # Standard serving without privacy
-    return send_from_directory(str(path.parent), path.name)
+    # Detect faces - try RetinaFace first, fall back to Haar cascades
+    faces = None
+    if config.FACE_DETECT_MODEL == "retinaface":
+        faces = _detect_faces_retinaface(img)
+
+    # If RetinaFace was not available or not configured, use Haar cascades
+    if faces is None:
+        faces = _detect_faces_haar(img)
+
+    # Blur detected faces
+    if faces:
+        img = _blur_faces(img, faces)
+
+    # Encode to JPEG
+    _, buffer = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 90])
+
+    # Save to cache so we only blur once per image
+    try:
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(str(cache_path), "wb") as f:
+            f.write(buffer.tobytes())
+    except Exception:
+        pass  # Caching is best-effort, don't break serving
+
+    return Response(buffer.tobytes(), mimetype="image/jpeg")
 
 
 # Component Builders

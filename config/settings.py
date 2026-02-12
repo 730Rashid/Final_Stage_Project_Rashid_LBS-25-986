@@ -136,6 +136,13 @@ class Config:
     FACE_DETECT_MIN_NEIGHBORS: int = 3
     FACE_DETECT_MIN_SIZE: Tuple[int, int] = (20, 20)
 
+    # Privacy - RetinaFace (deep learning face detection)
+    # "retinaface" uses a deep learning model with much higher recall/precision
+    # "haar" falls back to Haar cascades (lightweight, no extra dependencies)
+    FACE_DETECT_MODEL: str = "retinaface"
+    RETINAFACE_CONFIDENCE_THRESHOLD: float = 0.9
+    FACE_CACHE_DIR: Path = DATA_DIR / "cache" / "blurred"
+
     # Vectorisation
     VECTORISE_BATCH_SIZE: int = 32
 
@@ -166,14 +173,15 @@ class Config:
     def ensure_directories(self):
         """Create all necessary directories if they do not exist."""
         dirs = [
-            self.DATA_DIR, 
-            self.RAW_DATA_DIR, 
+            self.DATA_DIR,
+            self.RAW_DATA_DIR,
             self.PROCESSED_DATA_DIR,
-            self.EMBEDDINGS_DIR, 
-            self.METADATA_DIR, 
+            self.EMBEDDINGS_DIR,
+            self.METADATA_DIR,
             self.VISUALISATION_DIR,
-            self.REPORTS_DIR, 
+            self.REPORTS_DIR,
             self.FIGURES_DIR,
+            self.FACE_CACHE_DIR,
         ]
         for d in dirs:
             d.mkdir(parents=True, exist_ok=True)
