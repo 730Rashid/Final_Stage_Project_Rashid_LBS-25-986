@@ -90,7 +90,7 @@ The negative silhouette score is expected and meaningful: disaster imagery is in
 
 
 
-Final_Stage_Project_Rashid_LBS-25-986/          # Main Repository
+Final_Stage_Project_Rashid_LBS-25-986/
 ├── src/
 │   ├── app_demo.py          # Main Dash application
 │   ├── app_backend.py       # CLIP model and search logic
