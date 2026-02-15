@@ -60,6 +60,21 @@ LABEL_DISPLAY_NAMES = {
 }
 
 
+# Damage Severity Scoring — two-anchor contrast approach.
+# CLIP discriminates better between visually opposite extremes than between
+# subtle gradient phrases that all share similar vocabulary.
+SEVERITY_HIGH_ANCHOR = "collapsed rubble destroyed ruins catastrophic damage debris everywhere"
+SEVERITY_LOW_ANCHOR  = "intact undamaged building standing normal clean street no damage"
+SEVERITY_LABELS = [SEVERITY_HIGH_ANCHOR, SEVERITY_LOW_ANCHOR]
+
+SEVERITY_CATEGORIES = [
+    (0.75, "Critical", "#dc2626"),
+    (0.50, "Severe",   "#ea580c"),
+    (0.25, "Moderate", "#d97706"),
+    (0.00, "Minimal",  "#16a34a"),
+]
+
+
 class CrisisDataManager:
     """
     Manages crisis image data and AI models.
@@ -79,6 +94,7 @@ class CrisisDataManager:
         self.clip_model = None
         self.clip_processor = None
         self.label_embeddings = None
+        self.severity_embeddings = None
         self.device = None
         self.analytics = None
         self.captioner = None  # Lazy-loaded CLIP interrogator
@@ -105,7 +121,8 @@ class CrisisDataManager:
         
         # Precompute label embeddings
         self._precompute_label_embeddings()
-        
+        self._precompute_severity_embeddings()
+
         self._loaded = True
         return True
     
@@ -199,7 +216,58 @@ class CrisisDataManager:
         except Exception as e:
             print("Could not precompute label embeddings: {}".format(e))
             self.label_embeddings = None
-    
+
+    def _precompute_severity_embeddings(self):
+        """Precompute embeddings for damage severity labels."""
+        try:
+            print("Precomputing severity embeddings...")
+
+            all_features = []
+            for label in SEVERITY_LABELS:
+                inputs = self.clip_processor(
+                    text=[label],
+                    return_tensors="pt",
+                    padding=True,
+                    truncation=True
+                ).to(self.device)
+                with torch.no_grad():
+                    text_outputs = self.clip_model.text_model(**inputs)
+                    features = self.clip_model.text_projection(text_outputs.pooler_output)
+                all_features.append(features.cpu().numpy())
+
+            severity_features = np.vstack(all_features)
+            norms = np.linalg.norm(severity_features, axis=1, keepdims=True)
+            self.severity_embeddings = severity_features / norms
+
+            print("Severity embeddings ready")
+
+        except Exception as e:
+            print("Could not precompute severity embeddings: {}".format(e))
+            self.severity_embeddings = None
+
+    def score_damage_severity(self, image_index: int) -> dict:
+        """Score damage severity for an image using zero-shot CLIP.
+
+        Returns:
+            Dict with keys: score (0-1), category (str), color (hex str).
+        """
+        if self.severity_embeddings is None:
+            return {"score": 0.5, "category": "Unknown", "color": "#94a3b8"}
+
+        image_vector = self.embeddings[image_index].reshape(1, -1)
+        sims = cosine_similarity(image_vector, self.severity_embeddings)[0]
+
+        # contrast: how much more the image resembles "destroyed" vs "undamaged"
+        # sigmoid with temperature 20 spreads a ±0.05 contrast range across [0.27, 0.73]
+        contrast = float(sims[0] - sims[1])
+        score = float(1.0 / (1.0 + np.exp(-20.0 * contrast)))
+
+        for threshold, name, color in SEVERITY_CATEGORIES:
+            if score >= threshold:
+                return {"score": score, "category": name, "color": color}
+
+        return {"score": score, "category": "Minimal", "color": "#16a34a"}
+
     def semantic_search(
         self,
         query: str,
@@ -438,6 +506,11 @@ def get_analytics():
 def caption_image_by_index(image_index, style="natural"):
     """Convenience wrapper for image captioning."""
     return get_manager().caption_image(image_index, style)
+
+
+def get_damage_severity(image_index):
+    """Convenience wrapper for damage severity scoring."""
+    return get_manager().score_damage_severity(image_index)
 
 
 if __name__ == "__main__":

@@ -39,6 +39,7 @@ from app_backend import (
     visual_search,
     classify_image,
     caption_image_by_index,
+    get_damage_severity,
     CLASSIFICATION_LABELS,
     LABEL_DISPLAY_NAMES,
     PROJECT_ROOT,
@@ -662,6 +663,14 @@ def build_image_card(row, score, score_label="Match", privacy_mode=False):
 
         score_color = "#16a34a" if score >= 0.30 else "#2563eb"
 
+        # Damage severity score
+        severity = get_damage_severity(image_idx)
+        severity_badge = html.Span(
+            "{} {:.0f}%".format(severity["category"], severity["score"] * 100),
+            className="badge me-1",
+            style={"backgroundColor": severity["color"], "fontSize": "0.7rem", "color": "#fff"}
+        )
+
         # Generate caption using CLIP interrogation
         caption_data = caption_image_by_index(image_idx, style="brief")
         caption_text = caption_data.get("caption", "")
@@ -675,7 +684,8 @@ def build_image_card(row, score, score_label="Match", privacy_mode=False):
                     "{}: {:.0f}%".format(score_label, score * 100),
                     style={"color": score_color, "fontWeight": "600"}
                 ),
-                html.Div(badge_elements, className="mt-2") if badge_elements else None,
+                html.Div(severity_badge, className="mt-1"),
+                html.Div(badge_elements, className="mt-1") if badge_elements else None,
                 # Add caption below badges - styled to be subtle and readable
                 html.P(
                     caption_text,
@@ -684,7 +694,7 @@ def build_image_card(row, score, score_label="Match", privacy_mode=False):
                 ) if caption_text and caption_data.get("available") else None
             ], className="p-2", style={"borderTop": "1px solid #e2e8f0"})
         ], className="paper-card p-0 mb-3")
-    except ValueError:
+    except Exception:
         return None
 
 

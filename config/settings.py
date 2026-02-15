@@ -139,7 +139,7 @@ class Config:
     # Privacy - YuNet Deep Learning Face Detection
     # "yunet" uses OpenCV's built-in DNN face detector (fast, accurate, ~230KB model)
     # "haar" falls back to Haar cascades (no model file needed)
-    FACE_DETECT_MODEL: str = "yunet"
+    FACE_DETECT_MODEL: str = "haar"
     YUNET_MODEL_PATH: Path = DATA_DIR / "models" / "face_detection_yunet_2023mar.onnx"
     YUNET_CONFIDENCE_THRESHOLD: float = 0.7
     YUNET_NMS_THRESHOLD: float = 0.3
