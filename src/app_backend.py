@@ -97,7 +97,8 @@ class CrisisDataManager:
         self.severity_embeddings = None
         self.device = None
         self.analytics = None
-        self.captioner = None  # Lazy-loaded CLIP interrogator
+        self.captioner = None         # Lazy-loaded CLIP interrogator
+        self.heatmap_extractor = None  # Lazy-loaded attention rollout
         self._loaded = False
     
     def load(self) -> bool:
@@ -371,6 +372,30 @@ class CrisisDataManager:
                 self.captioner = None
         return self.captioner
 
+    def _get_heatmap_extractor(self):
+        """Get or create the CLIPAttentionRollout extractor (lazy-loaded)."""
+        if self.heatmap_extractor is None:
+            try:
+                from clip_heatmaps import CLIPAttentionRollout
+                print("Initialising CLIP attention rollout...")
+                self.heatmap_extractor = CLIPAttentionRollout(
+                    self.clip_model,
+                    self.clip_processor,
+                    self.device
+                )
+                print("Attention rollout ready")
+            except Exception as e:
+                print("Failed to initialise heatmap extractor: {}".format(e))
+                self.heatmap_extractor = None
+        return self.heatmap_extractor
+
+    def get_heatmap_bytes(self, image_path: str) -> bytes:
+        """Compute and return JPEG heatmap bytes for an image path."""
+        extractor = self._get_heatmap_extractor()
+        if extractor is None:
+            raise RuntimeError("Heatmap extractor not available")
+        return extractor.compute(image_path)
+
     def caption_image(
         self,
         image_index: int,
@@ -511,6 +536,11 @@ def caption_image_by_index(image_index, style="natural"):
 def get_damage_severity(image_index):
     """Convenience wrapper for damage severity scoring."""
     return get_manager().score_damage_severity(image_index)
+
+
+def get_heatmap_bytes(image_path):
+    """Convenience wrapper for attention heatmap generation."""
+    return get_manager().get_heatmap_bytes(image_path)
 
 
 if __name__ == "__main__":

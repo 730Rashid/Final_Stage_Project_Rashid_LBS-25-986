@@ -40,6 +40,7 @@ from app_backend import (
     classify_image,
     caption_image_by_index,
     get_damage_severity,
+    get_heatmap_bytes,
     CLASSIFICATION_LABELS,
     LABEL_DISPLAY_NAMES,
     PROJECT_ROOT,
@@ -185,34 +186,43 @@ def _detect_faces_haar(img):
     all_faces = []
 
     # Frontal faces
-    frontal = frontal_cascade.detectMultiScale(
-        grey,
-        scaleFactor=config.FACE_DETECT_SCALE_FACTOR,
-        minNeighbors=config.FACE_DETECT_MIN_NEIGHBORS,
-        minSize=config.FACE_DETECT_MIN_SIZE
-    )
-    all_faces.extend(frontal)
+    try:
+        frontal = frontal_cascade.detectMultiScale(
+            grey,
+            scaleFactor=config.FACE_DETECT_SCALE_FACTOR,
+            minNeighbors=config.FACE_DETECT_MIN_NEIGHBORS,
+            minSize=config.FACE_DETECT_MIN_SIZE
+        )
+        all_faces.extend(frontal)
+    except Exception:
+        pass
 
     # Left-facing profiles
-    profiles = profile_cascade.detectMultiScale(
-        grey,
-        scaleFactor=config.FACE_DETECT_SCALE_FACTOR,
-        minNeighbors=config.FACE_DETECT_MIN_NEIGHBORS,
-        minSize=config.FACE_DETECT_MIN_SIZE
-    )
-    all_faces.extend(profiles)
+    try:
+        profiles = profile_cascade.detectMultiScale(
+            grey,
+            scaleFactor=config.FACE_DETECT_SCALE_FACTOR,
+            minNeighbors=config.FACE_DETECT_MIN_NEIGHBORS,
+            minSize=config.FACE_DETECT_MIN_SIZE
+        )
+        all_faces.extend(profiles)
+    except Exception:
+        pass
 
     # Right-facing profiles (detect on flipped image, then mirror coords back)
-    flipped = cv2.flip(grey, 1)
-    flipped_profiles = profile_cascade.detectMultiScale(
-        flipped,
-        scaleFactor=config.FACE_DETECT_SCALE_FACTOR,
-        minNeighbors=config.FACE_DETECT_MIN_NEIGHBORS,
-        minSize=config.FACE_DETECT_MIN_SIZE
-    )
-    img_width = img.shape[1]
-    for (x, y, w, h) in flipped_profiles:
-        all_faces.append((img_width - x - w, y, w, h))
+    try:
+        flipped = cv2.flip(grey, 1)
+        flipped_profiles = profile_cascade.detectMultiScale(
+            flipped,
+            scaleFactor=config.FACE_DETECT_SCALE_FACTOR,
+            minNeighbors=config.FACE_DETECT_MIN_NEIGHBORS,
+            minSize=config.FACE_DETECT_MIN_SIZE
+        )
+        img_width = img.shape[1]
+        for (x, y, w, h) in flipped_profiles:
+            all_faces.append((img_width - x - w, y, w, h))
+    except Exception:
+        pass
 
     return all_faces
 
@@ -265,17 +275,20 @@ def serve_image(p):
         return send_from_directory(str(path.parent), path.name)
 
     # Detect faces — try YuNet first, fall back to Haar cascades
-    faces = None
-    if config.FACE_DETECT_MODEL == "yunet":
-        faces = _detect_faces_yunet(img)
+    try:
+        faces = None
+        if config.FACE_DETECT_MODEL == "yunet":
+            faces = _detect_faces_yunet(img)
 
-    # If YuNet was not available or not configured, use Haar cascades
-    if faces is None:
-        faces = _detect_faces_haar(img)
+        # If YuNet was not available or not configured, use Haar cascades
+        if faces is None:
+            faces = _detect_faces_haar(img)
 
-    # Blur detected faces
-    if faces:
-        img = _blur_faces(img, faces)
+        # Blur detected faces
+        if faces:
+            img = _blur_faces(img, faces)
+    except Exception:
+        pass  # Face detection failure — serve image unblurred rather than 500
 
     # Encode to JPEG
     _, buffer = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 90])
@@ -289,6 +302,19 @@ def serve_image(p):
         pass  # Caching is best-effort, don't break serving
 
     return Response(buffer.tobytes(), mimetype="image/jpeg")
+
+
+@server.route("/heatmap/<path:p>")
+def serve_heatmap(p):
+    """Serve CLIP attention rollout heatmap for an image."""
+    path = IMAGE_FOLDER / p
+    if not path.exists():
+        return "Not found", 404
+    try:
+        img_bytes = get_heatmap_bytes(str(path))
+        return Response(img_bytes, mimetype="image/jpeg")
+    except Exception as e:
+        return "Heatmap error: {}".format(e), 500
 
 
 # Component Builders
@@ -652,6 +678,7 @@ def build_image_card(row, score, score_label="Match", privacy_mode=False):
     try:
         rel_path = Path(row["path"]).relative_to(IMAGE_FOLDER)
         base_url = "/images/{}".format(str(rel_path).replace(os.sep, "/"))
+        heatmap_url = "/heatmap/{}".format(str(rel_path).replace(os.sep, "/"))
 
         # Add privacy suffix if enabled
         img_url = "{}?privacy=true".format(base_url) if privacy_mode else base_url
@@ -691,7 +718,14 @@ def build_image_card(row, score, score_label="Match", privacy_mode=False):
                     caption_text,
                     className="mt-2 mb-0 small",
                     style={"fontStyle": "italic", "color": "#64748b", "lineHeight": "1.4"}
-                ) if caption_text and caption_data.get("available") else None
+                ) if caption_text and caption_data.get("available") else None,
+                html.A(
+                    "View Attention Heatmap",
+                    href=heatmap_url,
+                    target="_blank",
+                    className="small d-block mt-2",
+                    style={"color": "#64748b", "textDecoration": "none", "opacity": "0.75"}
+                )
             ], className="p-2", style={"borderTop": "1px solid #e2e8f0"})
         ], className="paper-card p-0 mb-3")
     except Exception:
