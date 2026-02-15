@@ -117,4 +117,6 @@ class CLIPAttentionRollout:
 
         result_bytes = buffer.tobytes()
         self._cache[image_path] = result_bytes
+        
+        
         return result_bytes

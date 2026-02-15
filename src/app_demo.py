@@ -306,7 +306,7 @@ def serve_image(p):
 
 @server.route("/heatmap/<path:p>")
 def serve_heatmap(p):
-    """Serve CLIP attention rollout heatmap for an image."""
+    """Serve CLIP attention heatmap for an image."""
     path = IMAGE_FOLDER / p
     if not path.exists():
         return "Not found", 404
