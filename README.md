@@ -1,7 +1,7 @@
 # Visualising Natural Disaster Image Embeddings
 
-**Author:** Rashid Pandor  
-**Supervisor:** XinHui Ma  
+**Author:** Rashid Pandor
+**Supervisor:** XinHui Ma
 **Institution:** University of Hull, 2026
 
 ---
@@ -18,7 +18,7 @@ The dataset used is CrisisMMD, a publicly available collection of approximately 
 
 ## How It Works
 
-The system follows a four-stage pipeline:
+The system follows a multi-stage pipeline:
 
 ### 1. Data Ingestion
 
@@ -46,7 +46,11 @@ Parameters used:
 - min_dist: 0.1
 - metric: cosine
 
-### 4. Interactive Interface
+### 4. HDBSCAN Clustering and Auto-Naming
+
+The `cluster_discovery.py` script applies HDBSCAN (Hierarchical Density-Based Spatial Clustering of Applications with Noise) to the CLIP embeddings to discover natural groupings without specifying the number of clusters in advance. Each discovered cluster is automatically named by computing cosine similarity between the cluster centroid and a set of candidate text labels encoded with CLIP, assigning the best-matching label to each cluster.
+
+### 5. Interactive Interface
 
 The Dash application (`app_demo.py`) provides an interactive visualisation where users can:
 
@@ -54,12 +58,38 @@ The Dash application (`app_demo.py`) provides an interactive visualisation where
 - **Filter by event:** Isolate images from a specific disaster to see its "semantic footprint" across the embedding space.
 - **Semantic search:** Type natural language queries like "flooded street" or "collapsed building" and the system retrieves matching images in real-time.
 - **Visual query:** Click any point to find visually similar images using nearest-neighbour search in the embedding space.
+- **Zero-shot classification:** Each image card displays classification badges (e.g. Flood, Fire, Debris, Rescue) with confidence scores, computed using CLIP text-image cosine similarity against 10 disaster-related labels.
+- **Damage severity scoring:** A colour-coded severity badge (Critical, Severe, Moderate, Minimal) on each image card, computed using a two-anchor contrast approach comparing each image to "catastrophic damage" vs "undamaged" text embeddings with a sigmoid-scaled score.
+- **CLIP captioning:** Automatically generated natural language captions describing the scene content, using CLIP interrogation across scene, damage, object, and weather categories.
+- **Attention heatmaps:** Explainable AI visualisations showing which spatial regions CLIP's vision encoder attends to most when encoding an image, computed via patch-CLS cosine similarity on ViT-B/32 hidden states.
+- **Embedding analytics:** Inter-event similarity matrices, cluster density charts, and other statistical views of the embedding space.
 
 ---
 
 ## Privacy Protection
 
 Working with crisis imagery raises ethical concerns about victim dignity. The application includes an automated face-blurring pipeline that detects faces using Haar Cascade classifiers and applies Gaussian blur before serving images to the browser. This feature is always enabled and cannot be toggled off.
+
+---
+
+## Explainable AI: Attention Heatmaps
+
+The system generates spatial relevance heatmaps for each image by measuring the cosine similarity between each of the 49 spatial patch hidden states and the CLS token hidden state in CLIP's ViT-B/32 vision encoder. Patches with high similarity to the CLS token contributed most strongly to the global image representation, revealing where the model focused its attention.
+
+This approach is robust to all HuggingFace attention implementations (eager, SDPA, Flash Attention) since it only requires the final hidden states, not raw attention weight tensors. The resulting 7x7 relevance grid is upsampled to the original image dimensions with bicubic interpolation, coloured with a JET colourmap, and alpha-blended onto the original image.
+
+---
+
+## Damage Severity Scoring
+
+Each image receives a damage severity score using a two-anchor contrast approach:
+
+1. Two text anchors are encoded with CLIP: one describing catastrophic damage and one describing intact/undamaged scenes
+2. The cosine similarity between each image embedding and both anchors is computed
+3. The contrast (disaster_similarity - normal_similarity) is passed through a sigmoid function with temperature 20
+4. The resulting score (0-1) is mapped to a severity category: Critical (75%+), Severe (50-75%), Moderate (25-50%), or Minimal (0-25%)
+
+This zero-shot approach requires no labelled training data and provides direct humanitarian value for rapid damage assessment.
 
 ---
 
@@ -81,36 +111,47 @@ The negative silhouette score is expected and meaningful: disaster imagery is in
 |-----------|------------|
 | Embeddings | OpenAI CLIP (ViT-B/32) via Hugging Face Transformers |
 | Dimensionality Reduction | UMAP |
+| Clustering | HDBSCAN |
 | Web Framework | Dash (Plotly) with Flask backend |
 | Visualisation | Plotly, Scattergl for performance |
 | Face Detection | OpenCV Haar Cascades |
 | Data Processing | NumPy, Pandas, Pillow |
 | Similarity Search | Scikit-learn (cosine similarity) |
+| Heatmaps | OpenCV (JET colourmap, alpha blending) |
 
+---
 
+## Project Structure
 
-
+```
 Final_Stage_Project_Rashid_LBS-25-986/
 ├── src/
-│   ├── app_demo.py          # Main Dash application
-│   ├── app_backend.py       # CLIP model and search logic
-│   ├── clean_data.py        # Data cleaning pipeline
-│   ├── vectorise.py         # CLIP embedding generation
-│   ├── umap_reduction.py    # UMAP dimensionality reduction
-│   ├── evaluate_clusters.py # Clustering metrics
-│   ├── analytics.py         # Embedding space analytics
-│   └── utils/               # Helper modules
+│   ├── app_demo.py            # Main Dash application and UI
+│   ├── app_backend.py         # CLIP model, search, classification, severity scoring
+│   ├── clean_data.py          # Data cleaning pipeline
+│   ├── vectorise.py           # CLIP embedding generation
+│   ├── umap_reduction.py      # UMAP dimensionality reduction
+│   ├── cluster_discovery.py   # HDBSCAN clustering and auto-naming
+│   ├── evaluate_clusters.py   # Clustering metrics
+│   ├── analytics.py           # Embedding space analytics
+│   ├── clip_captioning.py     # CLIP interrogation for image captioning
+│   ├── clip_heatmaps.py       # Patch-CLS attention heatmaps (Explainable AI)
+│   └── utils/
+│       ├── event_utils.py     # Event parsing and mapping
+│       ├── file_utils.py      # File handling utilities
+│       └── gpu_utils.py       # GPU memory management
 ├── config/
-│   └── settings.py          # Central configuration
+│   ├── settings.py            # Central configuration
+│   └── logging_config.py      # Logging setup
 ├── assets/
-│   └── style.css            # Modern Academic theme
+│   └── style.css              # Modern Academic theme
 ├── data/
-│   ├── raw/                  # Original CrisisMMD dataset
-│   ├── processed/            # Cleaned images
-│   ├── embeddings/           # CLIP embeddings
-│   └── visualisation/        # UMAP coordinates
+│   ├── raw/                   # Original CrisisMMD dataset
+│   ├── processed/             # Cleaned images
+│   ├── embeddings/            # CLIP embeddings (.npy)
+│   └── visualisation/         # UMAP coordinates (.json)
 └── reports/
-    └── metrics/              # Evaluation results
+    └── metrics/               # Evaluation results
 ```
 
 ---
@@ -120,7 +161,7 @@ Final_Stage_Project_Rashid_LBS-25-986/
 ### Prerequisites
 
 - Python 3.9 or higher
-- CUDA-capable GPU recommended (runs on CPU but not recommended)
+- CUDA-capable GPU recommended (runs on CPU but slower)
 
 ### Installation
 
@@ -142,10 +183,13 @@ python src/vectorise.py
 # 3. Run UMAP reduction
 python src/umap_reduction.py
 
-# 4. (Optional) Evaluate clustering quality
+# 4. (Optional) Run HDBSCAN clustering
+python src/cluster_discovery.py
+
+# 5. (Optional) Evaluate clustering quality
 python src/evaluate_clusters.py
 
-# 5. Launch the visualisation!!!
+# 6. Launch the visualisation
 python src/app_demo.py
 ```
 
@@ -164,3 +208,5 @@ This project was developed as part of an Honours dissertation under the supervis
 - Radford, A. et al. (2021). Learning Transferable Visual Models From Natural Language Supervision. ICML.
 - McInnes, L., Healy, J., & Melville, J. (2018). UMAP: Uniform Manifold Approximation and Projection for Dimension Reduction.
 - Alam, F. et al. (2018). CrisisMMD: Multimodal Twitter Datasets from Natural Disasters. ICWSM.
+- Campello, R. J. G. B., Moulavi, D., & Sander, J. (2013). Density-Based Clustering Based on Hierarchical Density Estimates. PAKDD.
+- Abnar, S. & Zuidema, W. (2020). Quantifying Attention Flow in Transformers. ACL.
