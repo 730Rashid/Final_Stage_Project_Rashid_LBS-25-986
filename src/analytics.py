@@ -116,6 +116,177 @@ class EmbeddingAnalytics:
         self._cache["inter_event_matrix"] = matrix
         return matrix
 
+    def cross_event_retrieval_matrix(self) -> np.ndarray:
+        """
+        Compute a directional cross-event retrieval transfer matrix.
+
+        For each source event i and target event j, computes the mean cosine
+        similarity between a sample of source images and the target centroid.
+        The diagonal is the mean similarity of source images to their own centroid.
+
+        Returns:
+            np.ndarray of shape (num_events, num_events).
+            matrix[i, j] = mean_sim(source_event_i_images, centroid_j)
+        """
+        if "cross_event_retrieval" in self._cache:
+            return self._cache["cross_event_retrieval"]
+
+        sample_size = config.ANALYTICS_SAMPLE_SIZE
+
+        # Precompute all centroids (L2-normalised)
+        centroids = []
+        for event in self.events:
+            embs = self._get_event_embeddings(event)
+            c = embs.mean(axis=0)
+            c = c / np.linalg.norm(c)
+            centroids.append(c)
+        centroids = np.array(centroids)  # (num_events, 512)
+
+        n_events = len(self.events)
+        matrix = np.zeros((n_events, n_events), dtype=np.float32)
+
+        for i, src_event in enumerate(self.events):
+            embs = self._get_event_embeddings(src_event)
+            count = len(embs)
+            if count > sample_size:
+                rng = np.random.RandomState(config.RANDOM_SEED)
+                idx = rng.choice(count, size=sample_size, replace=False)
+                sampled = embs[idx]
+            else:
+                sampled = embs
+            # L2-normalised embeddings: dot product == cosine similarity
+            sims = sampled @ centroids.T  # (N_sample, num_events)
+            matrix[i] = sims.mean(axis=0)
+
+        self._cache["cross_event_retrieval"] = matrix
+        return matrix
+
+    def loo_classification_accuracy(self) -> Dict[str, Any]:
+        """
+        Leave-one-out classification accuracy across events.
+
+        For each held-out event, classify its sampled images against the
+        centroids of the remaining events. An image is correctly classified
+        if the nearest remaining centroid belongs to the same disaster type.
+
+        Returns:
+            Dict with event_accuracies, type_accuracies, overall_accuracy.
+        """
+        if "loo_classification" in self._cache:
+            return self._cache["loo_classification"]
+
+        sample_size = config.ANALYTICS_SAMPLE_SIZE
+        type_groups = config.DISASTER_TYPE_GROUPS
+
+        # Precompute all centroids
+        centroids = {}
+        for event in self.events:
+            embs = self._get_event_embeddings(event)
+            c = embs.mean(axis=0)
+            c = c / np.linalg.norm(c)
+            centroids[event] = c
+
+        event_accuracies = {}
+
+        for held_out in self.events:
+            remaining = [e for e in self.events if e != held_out]
+            remaining_centroids = np.array([centroids[e] for e in remaining])
+
+            embs = self._get_event_embeddings(held_out)
+            count = len(embs)
+            if count > sample_size:
+                rng = np.random.RandomState(config.RANDOM_SEED)
+                idx = rng.choice(count, size=sample_size, replace=False)
+                sampled = embs[idx]
+            else:
+                sampled = embs
+
+            sims = sampled @ remaining_centroids.T  # (N_sample, 6)
+            nearest_idx = np.argmax(sims, axis=1)
+
+            held_out_type = type_groups.get(held_out, "Unknown")
+            correct = sum(
+                1 for ni in nearest_idx
+                if type_groups.get(remaining[ni], "Unknown") == held_out_type
+            )
+            event_accuracies[held_out] = float(correct) / len(nearest_idx)
+
+        # Aggregate by disaster type
+        type_sums = {}
+        type_counts = {}
+        for event, acc in event_accuracies.items():
+            t = type_groups.get(event, "Unknown")
+            type_sums[t] = type_sums.get(t, 0.0) + acc
+            type_counts[t] = type_counts.get(t, 0) + 1
+        type_accuracies = {
+            t: type_sums[t] / type_counts[t] for t in type_sums
+        }
+
+        overall = float(np.mean(list(event_accuracies.values())))
+
+        result = {
+            "event_accuracies": event_accuracies,
+            "type_accuracies": type_accuracies,
+            "overall_accuracy": overall,
+        }
+        self._cache["loo_classification"] = result
+        return result
+
+    def disaster_type_grouping_analysis(self) -> Dict[str, Any]:
+        """
+        Within-type vs across-type similarity using centroid matrix.
+
+        Groups the 7 events into 3 disaster types and tests whether CLIP
+        representations cluster by disaster type.
+
+        Returns:
+            Dict with within_type, overall_within, overall_across, separation_ratio.
+        """
+        if "disaster_type_grouping" in self._cache:
+            return self._cache["disaster_type_grouping"]
+
+        type_groups = config.DISASTER_TYPE_GROUPS
+        matrix = self.inter_event_similarity_matrix()  # reuse cached
+        events = self.events
+
+        event_types = [type_groups.get(e, "Unknown") for e in events]
+        type_names = sorted(set(event_types))
+
+        within_type_sims = {t: [] for t in type_names}
+        across_type_sims = []
+
+        for i in range(len(events)):
+            for j in range(i + 1, len(events)):
+                sim = float(matrix[i, j])
+                if event_types[i] == event_types[j]:
+                    within_type_sims[event_types[i]].append(sim)
+                else:
+                    across_type_sims.append(sim)
+
+        within_type = {
+            t: float(np.mean(sims)) if sims else None
+            for t, sims in within_type_sims.items()
+        }
+
+        valid_within = [v for v in within_type.values() if v is not None]
+        overall_within = float(np.mean(valid_within)) if valid_within else None
+        overall_across = float(np.mean(across_type_sims)) if across_type_sims else None
+        separation_ratio = (
+            overall_within / overall_across
+            if overall_within is not None and overall_across and overall_across > 0
+            else None
+        )
+
+        result = {
+            "within_type": within_type,
+            "overall_within": overall_within,
+            "overall_across": overall_across,
+            "separation_ratio": separation_ratio,
+            "event_types": event_types,
+        }
+        self._cache["disaster_type_grouping"] = result
+        return result
+
     def intra_event_distributions(self) -> Dict[str, List[float]]:
         """
         Get sampled pairwise similarity distributions per event for box plots.
@@ -201,6 +372,9 @@ class EmbeddingAnalytics:
             Dict with all analytics results.
         """
         matrix = self.inter_event_similarity_matrix()
+        retrieval = self.cross_event_retrieval_matrix()
+        loo = self.loo_classification_accuracy()
+        grouping = self.disaster_type_grouping_analysis()
 
         return {
             "global_summary": self.global_summary(),
@@ -209,4 +383,10 @@ class EmbeddingAnalytics:
                 "events": self.events,
                 "matrix": matrix.tolist(),
             },
+            "cross_event_retrieval": {
+                "events": self.events,
+                "matrix": retrieval.tolist(),
+            },
+            "loo_classification": loo,
+            "disaster_type_grouping": grouping,
         }

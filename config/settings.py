@@ -121,6 +121,15 @@ class Config:
     
     # Analytics
     ANALYTICS_SAMPLE_SIZE: int = 500  # pairwise sim sampling per event
+    DISASTER_TYPE_GROUPS: dict = field(default_factory=lambda: {
+        "California Wildfires": "Wildfire",
+        "Hurricane Harvey":     "Hurricane/Flood",
+        "Hurricane Irma":       "Hurricane/Flood",
+        "Hurricane Maria":      "Hurricane/Flood",
+        "Sri Lanka Floods":     "Hurricane/Flood",
+        "Iraq-Iran Earthquake": "Earthquake",
+        "Mexico Earthquake":    "Earthquake",
+    })
 
     # Search & Classification Thresholds
     SEARCH_MIN_THRESHOLD: float = 0.28

@@ -68,6 +68,7 @@ if CLUSTER_LABELS_PATH.exists() and CLUSTER_METADATA_PATH.exists():
             cluster_metadata = json.load(f)
         df["cluster_id"] = cluster_labels
         print("Loaded cluster data: {} clusters".format(cluster_metadata["n_clusters"]))
+        
     except Exception as e:
         print("Warning: Could not load cluster data: {}".format(e))
         cluster_labels = None
@@ -90,7 +91,7 @@ server = app.server
 # Face Detection Setup
 # YuNet is OpenCV's built-in deep learning face detector (~230KB model).
 # It's loaded once and reused across all requests for performance.
-# If YuNet fails to load, we fall back to Haar cascades automatically.
+# If YuNet fails to load we then fall back to Haar cascades automatically.
 _yunet_detector = None
 _yunet_available = None  # None = not yet checked, True/False = result
 
@@ -280,13 +281,14 @@ def serve_image(p):
         if config.FACE_DETECT_MODEL == "yunet":
             faces = _detect_faces_yunet(img)
 
-        # If YuNet was not available or not configured, use Haar cascades
+        # If YuNet was not available or not configured then use Haar cascades
         if faces is None:
             faces = _detect_faces_haar(img)
 
         # Blur detected faces
         if faces:
             img = _blur_faces(img, faces)
+            
     except Exception:
         pass  # Face detection failure — serve image unblurred rather than 500
 
@@ -298,6 +300,7 @@ def serve_image(p):
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         with open(str(cache_path), "wb") as f:
             f.write(buffer.tobytes())
+            
     except Exception:
         pass  # Caching is best-effort, don't break serving
 
@@ -310,9 +313,11 @@ def serve_heatmap(p):
     path = IMAGE_FOLDER / p
     if not path.exists():
         return "Not found", 404
+    
     try:
         img_bytes = get_heatmap_bytes(str(path))
         return Response(img_bytes, mimetype="image/jpeg")
+    
     except Exception as e:
         return "Heatmap error: {}".format(e), 500
 
@@ -607,6 +612,8 @@ def analytics_page():
                 dcc.Tab(label="Event Statistics", value="tab-events",
                         className="custom-tab", selected_className="custom-tab--selected"),
                 dcc.Tab(label="Embedding Space", value="tab-embedding",
+                        className="custom-tab", selected_className="custom-tab--selected"),
+                dcc.Tab(label="Cross-Disaster Transfer", value="tab-transfer",
                         className="custom-tab", selected_className="custom-tab--selected"),
                 dcc.Tab(label="Export", value="tab-export",
                         className="custom-tab", selected_className="custom-tab--selected"),
@@ -983,8 +990,11 @@ def render_analytics_tab(tab):
         return _build_events_tab(analytics)
     elif tab == "tab-embedding":
         return _build_embedding_tab(analytics)
+    elif tab == "tab-transfer":
+        return _build_transfer_tab(analytics)
     elif tab == "tab-export":
         return _build_export_tab()
+    
     return []
 
 
@@ -1104,6 +1114,160 @@ def _build_embedding_tab(analytics):
             dbc.Col([
                 html.Div([
                     dcc.Graph(figure=box_fig, config={"displaylogo": False})
+                ], className="paper-card")
+            ], md=6),
+        ], className="g-4")
+    ])
+
+
+def _build_transfer_tab(analytics):
+    """Build the Cross-Disaster Transfer tab content."""
+    events = analytics.events
+    type_groups = config.DISASTER_TYPE_GROUPS
+
+    # Colour map for disaster types
+    type_colours = {
+        "Wildfire": "#ea580c",
+        "Hurricane/Flood": "#2563eb",
+        "Earthquake": "#7c3aed",
+    }
+
+    # --- 1. Directional retrieval heatmap ---
+    retrieval = analytics.cross_event_retrieval_matrix()
+    retrieval_fig = go.Figure(data=go.Heatmap(
+        z=retrieval,
+        x=events, y=events,
+        colorscale="RdBu",
+        zmid=float(np.mean(retrieval)),
+        text=[["{:.3f}".format(v) for v in row] for row in retrieval],
+        texttemplate="%{text}",
+        textfont=dict(size=10),
+        hovertemplate=(
+            "<b>Source:</b> %{y}<br>"
+            "<b>Target:</b> %{x}<br>"
+            "Mean Similarity: %{z:.4f}<extra></extra>"
+        )
+    ))
+    retrieval_fig.update_layout(
+        title="Cross-Event Retrieval Transfer (Source → Target Centroid Similarity)",
+        plot_bgcolor="#ffffff", paper_bgcolor="#ffffff",
+        font=dict(family="IBM Plex Sans"),
+        margin=dict(l=140, r=20, t=50, b=120),
+        xaxis=dict(title="Target Event", tickangle=-30),
+        yaxis=dict(title="Source Event", autorange="reversed"),
+        height=520
+    )
+
+    # --- 2. LOO classification bar chart ---
+    loo = analytics.loo_classification_accuracy()
+    event_accs = loo["event_accuracies"]
+    overall_acc = loo["overall_accuracy"]
+
+    loo_events = list(event_accs.keys())
+    loo_values = [event_accs[e] * 100 for e in loo_events]
+    loo_colours = [type_colours.get(type_groups.get(e, ""), "#94a3b8") for e in loo_events]
+
+    loo_fig = go.Figure(data=[
+        go.Bar(
+            x=loo_events, y=loo_values,
+            marker_color=loo_colours,
+            text=["{:.1f}%".format(v) for v in loo_values],
+            textposition="outside"
+        )
+    ])
+    loo_fig.add_hline(
+        y=overall_acc * 100, line_dash="dash", line_color="#64748b",
+        annotation_text="Overall: {:.1f}%".format(overall_acc * 100),
+        annotation_position="top right"
+    )
+    loo_fig.update_layout(
+        title="Leave-One-Out Classification by Disaster Type",
+        plot_bgcolor="#ffffff", paper_bgcolor="#ffffff",
+        font=dict(family="IBM Plex Sans"),
+        margin=dict(l=40, r=20, t=50, b=80),
+        xaxis=dict(tickangle=-30),
+        yaxis=dict(title="Accuracy (%)", gridcolor="#f1f5f9", range=[0, 110])
+    )
+
+    # --- 3. Disaster-type grouping chart ---
+    grouping = analytics.disaster_type_grouping_analysis()
+    within = grouping["within_type"]
+    across = grouping["overall_across"]
+    separation = grouping["separation_ratio"]
+
+    type_names = sorted(within.keys())
+    within_vals = []
+    bar_texts = []
+    bar_colours_group = []
+    for t in type_names:
+        v = within[t]
+        if v is not None:
+            within_vals.append(v)
+            bar_texts.append("{:.4f}".format(v))
+        else:
+            within_vals.append(0)
+            bar_texts.append("N/A (1 event)")
+        bar_colours_group.append(type_colours.get(t, "#94a3b8"))
+
+    group_fig = go.Figure(data=[
+        go.Bar(
+            x=type_names, y=within_vals,
+            marker_color=bar_colours_group,
+            text=bar_texts, textposition="outside"
+        )
+    ])
+    if across is not None:
+        group_fig.add_hline(
+            y=across, line_dash="dot", line_color="#dc2626",
+            annotation_text="Across-type avg: {:.4f}".format(across),
+            annotation_position="top right"
+        )
+    sep_text = "{:.2f}x".format(separation) if separation is not None else "N/A"
+    group_fig.update_layout(
+        title="Within-Type vs Across-Type Similarity (Separation: {})".format(sep_text),
+        plot_bgcolor="#ffffff", paper_bgcolor="#ffffff",
+        font=dict(family="IBM Plex Sans"),
+        margin=dict(l=40, r=20, t=50, b=60),
+        yaxis=dict(title="Mean Cosine Similarity", gridcolor="#f1f5f9")
+    )
+
+    return html.Div([
+        # Explanation card
+        html.Div([
+            html.H4("Cross-Disaster Transfer Analysis", className="paper-title mb-3"),
+            html.P([
+                "This tab analyses how CLIP representations transfer across disaster events and types. ",
+                "The ",
+                html.Strong("retrieval heatmap"),
+                " shows directional similarity (source images → target centroid). ",
+                "The ",
+                html.Strong("LOO classification"),
+                " tests if held-out event images can be classified by disaster type using remaining centroids. ",
+                "The ",
+                html.Strong("type grouping"),
+                " compares within-type vs across-type similarity to measure semantic clustering."
+            ], className="text-secondary mb-0")
+        ], className="paper-card mb-4"),
+
+        # Full-width retrieval heatmap
+        dbc.Row([
+            dbc.Col([
+                html.Div([
+                    dcc.Graph(figure=retrieval_fig, config={"displaylogo": False})
+                ], className="paper-card")
+            ], md=12),
+        ], className="g-4 mb-4"),
+
+        # Bottom row: LOO + Grouping
+        dbc.Row([
+            dbc.Col([
+                html.Div([
+                    dcc.Graph(figure=loo_fig, config={"displaylogo": False})
+                ], className="paper-card")
+            ], md=6),
+            dbc.Col([
+                html.Div([
+                    dcc.Graph(figure=group_fig, config={"displaylogo": False})
                 ], className="paper-card")
             ], md=6),
         ], className="g-4")

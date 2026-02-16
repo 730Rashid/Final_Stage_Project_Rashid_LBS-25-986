@@ -83,11 +83,11 @@ class CLIPAttentionRollout:
         patch_vec = hidden[1:]      # (49, 768)
 
         # Cosine similarity: each patch vs the CLS token
-        cls_norm   = cls_vec   / (cls_vec.norm(dim=-1, keepdim=True)   + 1e-8)
+        cls_norm   = cls_vec / (cls_vec.norm(dim=-1, keepdim=True)   + 1e-8)
         patch_norm = patch_vec / (patch_vec.norm(dim=-1, keepdim=True) + 1e-8)
         sim = (patch_norm @ cls_norm.T).squeeze().cpu().numpy()  # (49,)
 
-        # Normalize to [0, 1]
+        # Normalise to [0, 1]
         sim = (sim - sim.min()) / (sim.max() - sim.min() + 1e-8)
 
         # Reshape to 7×7 spatial grid and resize to original image dimensions

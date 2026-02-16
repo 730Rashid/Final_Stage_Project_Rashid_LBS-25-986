@@ -474,6 +474,7 @@ class CrisisDataManager:
                 results.append((display_name, float(score)))
         
         results.sort(key=lambda x: x[1], reverse=True)
+        
         return results
 
 
@@ -545,7 +546,7 @@ def get_heatmap_bytes(image_path):
 
 if __name__ == "__main__":
     # Demo usage
-    print("\nCrisisMMD Backend Demo\n")
+    print("\nVisualisng Natural Disaster Image Embeddings \n")
     
     manager = get_manager()
     
