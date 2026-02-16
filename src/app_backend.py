@@ -97,6 +97,7 @@ class CrisisDataManager:
         self.severity_embeddings = None
         self.device = None
         self.analytics = None
+        self.topology  = None          # Lazy-loaded TopologyAnalytics
         self.captioner = None         # Lazy-loaded CLIP interrogator
         self.heatmap_extractor = None  # Lazy-loaded attention rollout
         self._loaded = False
@@ -355,6 +356,13 @@ class CrisisDataManager:
             self.analytics = EmbeddingAnalytics(self.embeddings, self.df)
         return self.analytics
 
+    def get_topology_analytics(self):
+        """Get or create the TopologyAnalytics instance (lazy-loaded)."""
+        if self.topology is None:
+            from topology_analysis import TopologyAnalytics
+            self.topology = TopologyAnalytics(self.embeddings, self.df)
+        return self.topology
+
     def _get_captioner(self):
         """Get or create the CLIP Interrogator (lazy-loaded)."""
         if self.captioner is None:
@@ -527,6 +535,11 @@ def classify_image(image_index, threshold=0.20):
 def get_analytics():
     """Convenience wrapper for embedding analytics."""
     return get_manager().get_analytics()
+
+
+def get_topology_analytics():
+    """Convenience wrapper for topological analytics."""
+    return get_manager().get_topology_analytics()
 
 
 def caption_image_by_index(image_index, style="natural"):

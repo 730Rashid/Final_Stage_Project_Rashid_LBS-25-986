@@ -9,6 +9,9 @@ Supervisor: XinHui Ma
 Project: Visualising Natural Disaster Image Embeddings
 """
 
+# To run the script do this: .venv/Scripts/python.exe src/app_demo.py
+
+
 import sys
 import json
 import dash
@@ -35,6 +38,7 @@ from app_backend import (
     get_dataframe,
     get_unique_events,
     get_analytics,
+    get_topology_analytics,
     semantic_search,
     visual_search,
     classify_image,
@@ -615,6 +619,8 @@ def analytics_page():
                         className="custom-tab", selected_className="custom-tab--selected"),
                 dcc.Tab(label="Cross-Disaster Transfer", value="tab-transfer",
                         className="custom-tab", selected_className="custom-tab--selected"),
+                dcc.Tab(label="Topology", value="tab-topology",
+                        className="custom-tab", selected_className="custom-tab--selected"),
                 dcc.Tab(label="Export", value="tab-export",
                         className="custom-tab", selected_className="custom-tab--selected"),
             ],
@@ -994,7 +1000,10 @@ def render_analytics_tab(tab):
     
     elif tab == "tab-transfer":
         return _build_transfer_tab(analytics)
-    
+
+    elif tab == "tab-topology":
+        return _build_topology_tab()
+
     elif tab == "tab-export":
         return _build_export_tab()
     
@@ -1278,6 +1287,274 @@ def _build_transfer_tab(analytics):
                 ], className="paper-card")
             ], md=6),
         ], className="g-4")
+    ])
+
+
+def _build_topology_tab():
+    """Build the Topology tab: Persistent Homology + Ollivier-Ricci Curvature."""
+    topo = get_topology_analytics()
+
+    # ------------------------------------------------------------------
+    # Phase 1: Persistence Diagram (H0 + H1)
+    # ------------------------------------------------------------------
+    ph   = topo.persistence_homology()
+    h0   = ph["h0"]
+    h1   = ph["h1"]
+
+    # Build persistence diagram scatter plot
+    # Each point is (birth, death); distance from the diagonal = persistence
+    max_val = 0.0
+    if h0["death"]:
+        max_val = max(max_val, max(h0["death"]))
+    if h1["death"]:
+        max_val = max(max_val, max(h1["death"]))
+    max_val = max_val * 1.05 or 1.0   # avoid zero range
+
+    pd_fig = go.Figure()
+
+    # Diagonal: birth == death (zero-persistence, i.e. noise)
+    pd_fig.add_trace(go.Scatter(
+        x=[0, max_val], y=[0, max_val],
+        mode="lines",
+        line=dict(color="#94a3b8", dash="dash", width=1),
+        name="Diagonal (noise)",
+        hoverinfo="skip",
+    ))
+
+    # H0 features — connected components
+    if h0["birth"]:
+        h0_sizes = [6 + 20 * p / (h0["max_persistence"] + 1e-9)
+                    for p in h0["persistence"]]
+        pd_fig.add_trace(go.Scatter(
+            x=h0["birth"], y=h0["death"],
+            mode="markers",
+            marker=dict(
+                color="#2563eb", size=h0_sizes, opacity=0.75,
+                line=dict(width=1, color="#1e40af"),
+            ),
+            name="H0 — Connected components ({} features)".format(h0["n_features"]),
+            hovertemplate=(
+                "H0 feature<br>"
+                "Birth: %{x:.4f}<br>"
+                "Death: %{y:.4f}<br>"
+                "Persistence: %{customdata:.4f}<extra></extra>"
+            ),
+            customdata=h0["persistence"],
+        ))
+
+    # H1 features — loops / cycles
+    if h1["birth"]:
+        h1_sizes = [8 + 24 * p / (h1["max_persistence"] + 1e-9)
+                    for p in h1["persistence"]]
+        pd_fig.add_trace(go.Scatter(
+            x=h1["birth"], y=h1["death"],
+            mode="markers",
+            marker=dict(
+                color="#dc2626", size=h1_sizes, opacity=0.75,
+                symbol="diamond",
+                line=dict(width=1, color="#991b1b"),
+            ),
+            name="H1 — Loops / cycles ({} features)".format(h1["n_features"]),
+            hovertemplate=(
+                "H1 feature<br>"
+                "Birth: %{x:.4f}<br>"
+                "Death: %{y:.4f}<br>"
+                "Persistence: %{customdata:.4f}<extra></extra>"
+            ),
+            customdata=h1["persistence"],
+        ))
+
+    pd_fig.update_layout(
+        title="Persistence Diagram — Vietoris-Rips on {} images (cosine distance)".format(
+            ph["sample_size"]),
+        xaxis=dict(title="Birth radius", gridcolor="#f1f5f9", range=[0, max_val]),
+        yaxis=dict(title="Death radius", gridcolor="#f1f5f9", range=[0, max_val]),
+        plot_bgcolor="#ffffff", paper_bgcolor="#ffffff",
+        font=dict(family="IBM Plex Sans"),
+        margin=dict(l=60, r=20, t=50, b=60),
+        legend=dict(orientation="h", yanchor="bottom", y=1.01, xanchor="left", x=0),
+        height=480,
+    )
+
+    # ------------------------------------------------------------------
+    # Phase 2: Ollivier-Ricci Curvature — Histogram
+    # ------------------------------------------------------------------
+    ricci = topo.ollivier_ricci_curvature()
+    curvs = ricci["edge_curvatures"]
+
+    # Build a colour-coded histogram: red bins (κ < 0) vs blue bins (κ > 0)
+    curv_arr = np.array(curvs)
+    neg_vals = curv_arr[curv_arr < 0].tolist()
+    pos_vals = curv_arr[curv_arr >= 0].tolist()
+
+    hist_fig = go.Figure()
+    if neg_vals:
+        hist_fig.add_trace(go.Histogram(
+            x=neg_vals,
+            name="Negative κ — bridge / bottleneck ({:.1f}%)".format(
+                ricci["pct_negative"]),
+            marker_color="#dc2626", opacity=0.8,
+            nbinsx=30,
+            hovertemplate="κ range: %{x}<br>Edges: %{y}<extra></extra>",
+        ))
+    if pos_vals:
+        hist_fig.add_trace(go.Histogram(
+            x=pos_vals,
+            name="Positive κ — dense cluster ({:.1f}%)".format(
+                ricci["pct_positive"]),
+            marker_color="#2563eb", opacity=0.8,
+            nbinsx=30,
+            hovertemplate="κ range: %{x}<br>Edges: %{y}<extra></extra>",
+        ))
+
+    hist_fig.add_vline(
+        x=0, line_dash="dash", line_color="#64748b",
+        annotation_text="κ = 0 (flat)",
+        annotation_position="top right",
+    )
+    hist_fig.add_vline(
+        x=ricci["global_mean"], line_dash="dot", line_color="#7c3aed",
+        annotation_text="Mean κ = {:.3f}".format(ricci["global_mean"]),
+        annotation_position="top left",
+    )
+    hist_fig.update_layout(
+        title="Ollivier-Ricci Curvature Histogram — {}-NN graph on {} images".format(
+            ricci["k_neighbors"], ricci["sample_size"]),
+        barmode="overlay",
+        xaxis=dict(title="Curvature κ(u, v)", gridcolor="#f1f5f9"),
+        yaxis=dict(title="Number of edges", gridcolor="#f1f5f9"),
+        plot_bgcolor="#ffffff", paper_bgcolor="#ffffff",
+        font=dict(family="IBM Plex Sans"),
+        margin=dict(l=60, r=20, t=50, b=60),
+        legend=dict(orientation="h", yanchor="bottom", y=1.01, xanchor="left", x=0),
+        height=380,
+    )
+
+    # ------------------------------------------------------------------
+    # Phase 2b: Per-event mean curvature bar chart
+    # ------------------------------------------------------------------
+    type_groups = config.DISASTER_TYPE_GROUPS
+    type_colours = {
+        "Wildfire":       "#ea580c",
+        "Hurricane/Flood": "#2563eb",
+        "Earthquake":     "#7c3aed",
+    }
+
+    event_curv = ricci["event_mean_curvature"]
+    ev_names   = sorted(event_curv.keys())
+    ev_vals    = [event_curv[e] for e in ev_names]
+    ev_colours = [
+        type_colours.get(type_groups.get(e, ""), "#94a3b8")
+        for e in ev_names
+    ]
+
+    ev_fig = go.Figure(data=[go.Bar(
+        x=ev_names, y=ev_vals,
+        marker_color=ev_colours,
+        text=["{:.3f}".format(v) for v in ev_vals],
+        textposition="outside",
+        hovertemplate="<b>%{x}</b><br>Mean κ: %{y:.4f}<extra></extra>",
+    )])
+    ev_fig.add_hline(
+        y=0, line_color="#64748b", line_dash="dash",
+        annotation_text="κ = 0",
+        annotation_position="top right",
+    )
+    ev_fig.update_layout(
+        title="Mean Intra-Event Curvature per Disaster",
+        xaxis=dict(tickangle=-30),
+        yaxis=dict(title="Mean κ", gridcolor="#f1f5f9"),
+        plot_bgcolor="#ffffff", paper_bgcolor="#ffffff",
+        font=dict(family="IBM Plex Sans"),
+        margin=dict(l=50, r=20, t=50, b=100),
+        height=380,
+    )
+
+    # ------------------------------------------------------------------
+    # Summary metric cards
+    # ------------------------------------------------------------------
+    def _metric_card(label, value, sub=""):
+        return html.Div([
+            html.P(label, className="text-secondary mb-1",
+                   style={"fontSize": "0.75rem", "textTransform": "uppercase",
+                          "letterSpacing": "0.05em"}),
+            html.H4(value, className="mb-0",
+                    style={"fontWeight": "700", "fontFamily": "IBM Plex Mono"}),
+            html.P(sub, className="text-secondary mb-0",
+                   style={"fontSize": "0.8rem"}),
+        ], className="paper-card text-center", style={"padding": "1rem"})
+
+    geo_type = (
+        "Hyperbolic / tree-like" if ricci["global_mean"] < -0.05
+        else "Spherical / cluster-like" if ricci["global_mean"] > 0.05
+        else "Flat (Euclidean-like)"
+    )
+
+    return html.Div([
+        # Explanation card
+        html.Div([
+            html.H4("Topological Analysis of the CLIP Embedding Space",
+                    className="paper-title mb-3"),
+            html.P([
+                "This tab applies two techniques from algebraic topology and discrete "
+                "geometry to characterise the global structure of the disaster embedding space. ",
+                html.Strong("Persistent homology"),
+                " (Vietoris-Rips filtration) reveals how many distinct semantic clusters "
+                "exist and whether any topological 'holes' are present — regions of semantic "
+                "ambiguity not captured by any single cluster. ",
+                html.Strong("Ollivier-Ricci curvature"),
+                " measures the local geometry of the embedding graph: positive curvature "
+                "indicates dense, sphere-like clusters, while negative curvature identifies "
+                "bridge edges connecting semantically distant regions.",
+            ], className="text-secondary mb-0"),
+        ], className="paper-card mb-4"),
+
+        # Summary metric cards
+        dbc.Row([
+            dbc.Col(_metric_card(
+                "H0 Persistent Features",
+                str(h0["n_features"]),
+                "Semantic components (finite lifetime)"
+            ), md=3),
+            dbc.Col(_metric_card(
+                "H1 Persistent Features",
+                str(h1["n_features"]),
+                "Topological loops in embedding space"
+            ), md=3),
+            dbc.Col(_metric_card(
+                "Global Mean Curvature",
+                "{:.3f}".format(ricci["global_mean"]),
+                geo_type
+            ), md=3),
+            dbc.Col(_metric_card(
+                "Bridge Edges (κ < 0)",
+                "{:.1f}%".format(ricci["pct_negative"]),
+                "of {} total edges".format(ricci["n_edges"])
+            ), md=3),
+        ], className="g-3 mb-4"),
+
+        # Persistence diagram (full width)
+        dbc.Row([
+            dbc.Col([
+                html.Div([
+                    dcc.Graph(figure=pd_fig, config={"displaylogo": False})
+                ], className="paper-card")
+            ], md=12),
+        ], className="g-4 mb-4"),
+
+        # Curvature histogram + per-event bar chart
+        dbc.Row([
+            dbc.Col([
+                html.Div([
+                    dcc.Graph(figure=hist_fig, config={"displaylogo": False})
+                ], className="paper-card")
+            ], md=7),
+            dbc.Col([
+                html.Div([
+                    dcc.Graph(figure=ev_fig, config={"displaylogo": False})
+                ], className="paper-card")
+            ], md=5),
+        ], className="g-4"),
     ])
 
 
