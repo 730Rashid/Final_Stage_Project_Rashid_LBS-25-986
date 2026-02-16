@@ -12,7 +12,7 @@ Project: Visualising Natural Disaster Image Embeddings
 import sys
 import json
 import dash
-from dash import dcc, html, Input, Output, State, ctx
+from dash import dcc, html, Input, Output, State, ctx, no_update
 import dash_bootstrap_components as dbc
 import plotly.graph_objects as go
 import pandas as pd
@@ -988,10 +988,13 @@ def render_analytics_tab(tab):
 
     if tab == "tab-events":
         return _build_events_tab(analytics)
+    
     elif tab == "tab-embedding":
         return _build_embedding_tab(analytics)
+    
     elif tab == "tab-transfer":
         return _build_transfer_tab(analytics)
+    
     elif tab == "tab-export":
         return _build_export_tab()
     
@@ -1132,7 +1135,7 @@ def _build_transfer_tab(analytics):
         "Earthquake": "#7c3aed",
     }
 
-    # --- 1. Directional retrieval heatmap ---
+    # Directional retrieval heatmap
     retrieval = analytics.cross_event_retrieval_matrix()
     retrieval_fig = go.Figure(data=go.Heatmap(
         z=retrieval,
@@ -1158,7 +1161,7 @@ def _build_transfer_tab(analytics):
         height=520
     )
 
-    # --- 2. LOO classification bar chart ---
+    # LOO classification bar chart
     loo = analytics.loo_classification_accuracy()
     event_accs = loo["event_accuracies"]
     overall_acc = loo["overall_accuracy"]
@@ -1189,7 +1192,7 @@ def _build_transfer_tab(analytics):
         yaxis=dict(title="Accuracy (%)", gridcolor="#f1f5f9", range=[0, 110])
     )
 
-    # --- 3. Disaster-type grouping chart ---
+    # Disaster-type grouping chart
     grouping = analytics.disaster_type_grouping_analysis()
     within = grouping["within_type"]
     across = grouping["overall_across"]
@@ -1199,14 +1202,18 @@ def _build_transfer_tab(analytics):
     within_vals = []
     bar_texts = []
     bar_colours_group = []
+    
     for t in type_names:
         v = within[t]
+        
         if v is not None:
             within_vals.append(v)
             bar_texts.append("{:.4f}".format(v))
+            
         else:
             within_vals.append(0)
             bar_texts.append("N/A (1 event)")
+            
         bar_colours_group.append(type_colours.get(t, "#94a3b8"))
 
     group_fig = go.Figure(data=[
@@ -1275,39 +1282,344 @@ def _build_transfer_tab(analytics):
 
 
 def _build_export_tab():
-    """Build the Export tab content."""
-    return html.Div([
-        html.Div([
-            html.H4("Export Analytics Report", className="paper-title mb-3"),
-            html.P(
-                "Download all embedding space analytics as a JSON report. "
-                "Includes per-event statistics, inter-event similarity matrix, "
-                "and global summary metrics.",
-                className="text-secondary"
-            ),
-            dbc.Button(
-                [html.I(className="bi bi-download me-2"), "Download JSON Report"],
-                id="btn-export-json",
-                className="btn-primary-action",
-                n_clicks=0
-            ),
-        ], className="paper-card", style={"maxWidth": "600px"})
-    ])
+    """Build the Export tab with a live preview of key findings."""
+    analytics = get_analytics()
+
+    # Gather all data for the preview
+    summary = analytics.global_summary()
+    stats = analytics.per_event_stats()
+    loo = analytics.loo_classification_accuracy()
+    grouping = analytics.disaster_type_grouping_analysis()
+
+    events = sorted(stats.keys())
+    type_groups = config.DISASTER_TYPE_GROUPS
+
+    # --- Key Findings Preview ---
+    # Global overview cards
+    global_cards = dbc.Row([
+        dbc.Col(html.Div([
+            html.Div("Total Images", className="text-secondary",
+                      style={"fontSize": "0.8rem", "textTransform": "uppercase", "letterSpacing": "0.05em"}),
+            html.Div("{:,}".format(summary["total_images"]),
+                      style={"fontSize": "1.8rem", "fontWeight": "600", "color": "#1e293b"}),
+        ], className="paper-card text-center py-3"), md=3),
+        dbc.Col(html.Div([
+            html.Div("Embedding Dim", className="text-secondary",
+                      style={"fontSize": "0.8rem", "textTransform": "uppercase", "letterSpacing": "0.05em"}),
+            html.Div(str(summary["embedding_dim"]),
+                      style={"fontSize": "1.8rem", "fontWeight": "600", "color": "#1e293b"}),
+        ], className="paper-card text-center py-3"), md=3),
+        dbc.Col(html.Div([
+            html.Div("Global Mean Sim", className="text-secondary",
+                      style={"fontSize": "0.8rem", "textTransform": "uppercase", "letterSpacing": "0.05em"}),
+            html.Div("{:.4f}".format(summary["global_mean_similarity"]),
+                      style={"fontSize": "1.8rem", "fontWeight": "600", "color": "#2563eb"}),
+        ], className="paper-card text-center py-3"), md=3),
+        dbc.Col(html.Div([
+            html.Div("LOO Accuracy", className="text-secondary",
+                      style={"fontSize": "0.8rem", "textTransform": "uppercase", "letterSpacing": "0.05em"}),
+            html.Div("{:.1f}%".format(loo["overall_accuracy"] * 100),
+                      style={"fontSize": "1.8rem", "fontWeight": "600", "color": "#16a34a"}),
+        ], className="paper-card text-center py-3"), md=3),
+    ], className="g-3 mb-4")
+
+    # Per-event summary table
+    table_rows = []
+    for event in events:
+        s = stats[event]
+        acc = loo["event_accuracies"].get(event, 0)
+        dtype = type_groups.get(event, "Unknown")
+        table_rows.append(html.Tr([
+            html.Td(event, style={"fontWeight": "500"}),
+            html.Td(dtype),
+            html.Td("{:,}".format(s["count"])),
+            html.Td("{:.4f}".format(s["cohesion"])),
+            html.Td("{:.4f}".format(s["spread"])),
+            html.Td("{:.1f}%".format(acc * 100)),
+        ]))
+
+    event_table = html.Div([
+        html.H5("Per-Event Summary", className="paper-title mb-3"),
+        dbc.Table([
+            html.Thead(html.Tr([
+                html.Th("Event"), html.Th("Type"), html.Th("Images"),
+                html.Th("Cohesion"), html.Th("Spread"), html.Th("LOO Acc"),
+            ])),
+            html.Tbody(table_rows)
+        ], bordered=True, hover=True, size="sm",
+           style={"fontSize": "0.85rem"})
+    ], className="paper-card mb-4")
+
+    # Type grouping summary
+    within = grouping["within_type"]
+    sep = grouping["separation_ratio"]
+    grouping_items = []
+    for t in sorted(within.keys()):
+        v = within[t]
+        val_str = "{:.4f}".format(v) if v is not None else "N/A (single event)"
+        grouping_items.append(html.Li([
+            html.Strong(t), ": within-type similarity = {}".format(val_str)
+        ]))
+
+    type_summary = html.Div([
+        html.H5("Disaster Type Grouping", className="paper-title mb-3"),
+        html.Ul(grouping_items, style={"fontSize": "0.9rem", "lineHeight": "1.8"}),
+        html.P([
+            "Across-type similarity: ",
+            html.Strong("{:.4f}".format(grouping["overall_across"])) if grouping["overall_across"] else "N/A",
+            " | Separation ratio: ",
+            html.Strong("{:.2f}x".format(sep)) if sep else "N/A",
+        ], className="text-secondary", style={"fontSize": "0.9rem"})
+    ], className="paper-card mb-4")
+
+    # Download section
+    download_section = html.Div([
+        html.H5("Download Report", className="paper-title mb-3"),
+        html.P(
+            "Export the full analytics report with all metrics, matrices, "
+            "and cross-disaster transfer findings.",
+            className="text-secondary mb-3"
+        ),
+        dbc.Row([
+            dbc.Col([
+                dbc.Button(
+                    [html.I(className="bi bi-filetype-json me-2"), "Download JSON"],
+                    id="btn-export-json",
+                    className="btn-primary-action w-100",
+                ),
+                html.Small("Structured data for further analysis",
+                           className="text-secondary d-block mt-1 text-center")
+            ], md=4),
+            dbc.Col([
+                dbc.Button(
+                    [html.I(className="bi bi-file-text me-2"), "Download Text Summary"],
+                    id="btn-export-txt",
+                    className="btn-primary-action w-100",
+                    style={"backgroundColor": "#475569"}
+                ),
+                html.Small("Human-readable findings for your dissertation",
+                           className="text-secondary d-block mt-1 text-center")
+            ], md=4),
+        ], className="g-3")
+    ], className="paper-card")
+
+    return html.Div([global_cards, event_table, type_summary, download_section])
+
+
+def _generate_text_report(analytics) -> str:
+    """Generate a human-readable plain-text analytics report."""
+    summary = analytics.global_summary()
+    stats = analytics.per_event_stats()
+    loo = analytics.loo_classification_accuracy()
+    grouping = analytics.disaster_type_grouping_analysis()
+    type_groups = config.DISASTER_TYPE_GROUPS
+    events = analytics.events
+
+    lines = []
+    lines.append("=" * 68)
+    lines.append("  CLIP EMBEDDING SPACE ANALYTICS REPORT")
+    lines.append("  Visualising Natural Disaster Image Embeddings")
+    lines.append("  Model: CLIP ViT-B/32  |  Dataset: CrisisMMD")
+    lines.append("=" * 68)
+    lines.append("")
+
+    # Section 1: Global Summary
+    lines.append("1. GLOBAL EMBEDDING SPACE SUMMARY")
+    lines.append("-" * 40)
+    lines.append("  Total images:          {:,}".format(summary["total_images"]))
+    lines.append("  Embedding dimensions:  {}".format(summary["embedding_dim"]))
+    lines.append("  Number of events:      {}".format(summary["num_events"]))
+    lines.append("  Global mean similarity: {:.4f}".format(summary["global_mean_similarity"]))
+    lines.append("  Global std similarity:  {:.4f}".format(summary["global_std_similarity"]))
+    lines.append("  Similarity range:       [{:.4f}, {:.4f}]".format(
+        summary["global_min_similarity"], summary["global_max_similarity"]))
+    lines.append("")
+
+    # Section 2: Per-Event Statistics
+    lines.append("2. PER-EVENT STATISTICS")
+    lines.append("-" * 40)
+    header = "  {:<25s} {:>6s} {:>10s} {:>10s} {:>8s}".format(
+        "Event", "Count", "Cohesion", "Spread", "LOO Acc")
+    lines.append(header)
+    lines.append("  " + "-" * 61)
+    for event in events:
+        s = stats[event]
+        acc = loo["event_accuracies"].get(event, 0)
+        lines.append("  {:<25s} {:>6,d} {:>10.4f} {:>10.4f} {:>7.1f}%".format(
+            event, s["count"], s["cohesion"], s["spread"], acc * 100))
+    lines.append("")
+
+    # Section 3: Cross-Disaster Transfer
+    lines.append("3. CROSS-DISASTER TRANSFER ANALYSIS")
+    lines.append("-" * 40)
+    lines.append("")
+    lines.append("  Leave-One-Out Classification (by disaster type):")
+    lines.append("  Overall accuracy: {:.1f}%".format(loo["overall_accuracy"] * 100))
+    lines.append("")
+    for dtype, acc in sorted(loo["type_accuracies"].items()):
+        lines.append("    {:<20s} {:.1f}%".format(dtype, acc * 100))
+    lines.append("")
+
+    # Section 4: Disaster Type Grouping
+    lines.append("4. DISASTER TYPE GROUPING")
+    lines.append("-" * 40)
+    within = grouping["within_type"]
+    for dtype in sorted(within.keys()):
+        v = within[dtype]
+        val = "{:.4f}".format(v) if v is not None else "N/A (single event)"
+        lines.append("  {:<20s} within-type sim: {}".format(dtype, val))
+    lines.append("")
+    if grouping["overall_across"] is not None:
+        lines.append("  Across-type similarity:  {:.4f}".format(grouping["overall_across"]))
+    if grouping["overall_within"] is not None:
+        lines.append("  Within-type similarity:  {:.4f}".format(grouping["overall_within"]))
+    if grouping["separation_ratio"] is not None:
+        lines.append("  Separation ratio:        {:.2f}x".format(grouping["separation_ratio"]))
+        lines.append("")
+        if grouping["separation_ratio"] > 1.0:
+            lines.append("  Interpretation: CLIP embeddings cluster by disaster type")
+            lines.append("  (within-type similarity exceeds across-type similarity).")
+        else:
+            lines.append("  Interpretation: Disaster types are not strongly separated")
+            lines.append("  in the CLIP embedding space.")
+    lines.append("")
+
+    # Section 5: Retrieval Transfer Matrix
+    retrieval = analytics.cross_event_retrieval_matrix()
+    lines.append("5. CROSS-EVENT RETRIEVAL TRANSFER MATRIX")
+    lines.append("-" * 40)
+    lines.append("  Rows = source event, Columns = target centroid")
+    lines.append("  Values = mean cosine similarity of source images to target centroid")
+    lines.append("")
+
+    # Short labels for formatting
+    short = [e[:12] for e in events]
+    col_w = 13
+    header_line = "  {:<15s}".format("") + "".join("{:>{w}s}".format(s, w=col_w) for s in short)
+    lines.append(header_line)
+    lines.append("  " + "-" * (15 + col_w * len(events)))
+    for i, event in enumerate(events):
+        row_vals = "".join("{:>{w}.4f}".format(float(retrieval[i, j]), w=col_w) for j in range(len(events)))
+        lines.append("  {:<15s}{}".format(event[:15], row_vals))
+    lines.append("")
+
+    lines.append("=" * 68)
+    lines.append("  Report generated by CLIP Embedding Analytics")
+    lines.append("  Author: Rashid  |  Supervisor: XinHui Ma")
+    lines.append("=" * 68)
+
+    return "\n".join(lines)
+
+
+def _generate_structured_json(analytics) -> dict:
+    """Generate a well-structured, human-readable JSON report."""
+    summary = analytics.global_summary()
+    stats = analytics.per_event_stats()
+    matrix = analytics.inter_event_similarity_matrix()
+    retrieval = analytics.cross_event_retrieval_matrix()
+    loo = analytics.loo_classification_accuracy()
+    grouping = analytics.disaster_type_grouping_analysis()
+    events = analytics.events
+    type_groups = config.DISASTER_TYPE_GROUPS
+
+    return {
+        "_report_info": {
+            "title": "CLIP Embedding Space Analytics Report",
+            "project": "Visualising Natural Disaster Image Embeddings",
+            "model": "CLIP ViT-B/32",
+            "dataset": "CrisisMMD",
+            "author": "Rashid",
+            "supervisor": "XinHui Ma",
+        },
+        "global_summary": {
+            "_description": "Overall statistics of the CLIP embedding space across all images.",
+            "total_images": summary["total_images"],
+            "embedding_dimensions": summary["embedding_dim"],
+            "num_events": summary["num_events"],
+            "pairwise_similarity": {
+                "mean": round(summary["global_mean_similarity"], 4),
+                "std": round(summary["global_std_similarity"], 4),
+                "min": round(summary["global_min_similarity"], 4),
+                "max": round(summary["global_max_similarity"], 4),
+            }
+        },
+        "per_event_statistics": {
+            "_description": "Per-event cohesion (mean pairwise cosine similarity) and spread (std). Higher cohesion means images within an event are more visually similar.",
+            "events": {
+                event: {
+                    "disaster_type": type_groups.get(event, "Unknown"),
+                    "image_count": stats[event]["count"],
+                    "cohesion": round(stats[event]["cohesion"], 4),
+                    "spread": round(stats[event]["spread"], 4),
+                }
+                for event in events
+            }
+        },
+        "inter_event_similarity": {
+            "_description": "Centroid-to-centroid cosine similarity between events. Symmetric matrix showing how similar each pair of events is in the embedding space.",
+            "events": events,
+            "matrix": [
+                [round(float(matrix[i, j]), 4) for j in range(len(events))]
+                for i in range(len(events))
+            ]
+        },
+        "cross_disaster_transfer": {
+            "_description": "Directional retrieval transfer matrix. matrix[i][j] = mean cosine similarity of source event i's images to target event j's centroid. NOT symmetric.",
+            "events": events,
+            "matrix": [
+                [round(float(retrieval[i, j]), 4) for j in range(len(events))]
+                for i in range(len(events))
+            ]
+        },
+        "leave_one_out_classification": {
+            "_description": "Each event is held out and its images are classified against remaining centroids by disaster TYPE match (not exact event). California Wildfires gets 0% because it is the only wildfire event.",
+            "overall_accuracy": round(loo["overall_accuracy"], 4),
+            "by_disaster_type": {
+                t: round(a, 4) for t, a in sorted(loo["type_accuracies"].items())
+            },
+            "by_event": {
+                event: round(loo["event_accuracies"][event], 4)
+                for event in events
+            }
+        },
+        "disaster_type_grouping": {
+            "_description": "Tests whether CLIP representations cluster by disaster type. Separation ratio > 1.0 means within-type similarity exceeds across-type similarity.",
+            "within_type_similarity": {
+                t: round(v, 4) if v is not None else None
+                for t, v in sorted(grouping["within_type"].items())
+            },
+            "overall_within_type": round(grouping["overall_within"], 4) if grouping["overall_within"] else None,
+            "overall_across_type": round(grouping["overall_across"], 4) if grouping["overall_across"] else None,
+            "separation_ratio": round(grouping["separation_ratio"], 2) if grouping["separation_ratio"] else None,
+        }
+    }
 
 
 @app.callback(
     Output("analytics-download", "data"),
     Input("btn-export-json", "n_clicks"),
+    Input("btn-export-txt", "n_clicks"),
     prevent_initial_call=True
 )
-def download_analytics_report(n_clicks):
-    """Generate and send the analytics JSON report."""
+def download_analytics_report(json_clicks, txt_clicks):
+    """Generate and send the analytics report in the requested format."""
+    trigger = ctx.triggered_id
+    if trigger is None:
+        return no_update
+
     analytics = get_analytics()
-    report = analytics.export_report()
-    return dcc.send_string(
-        json.dumps(report, indent=2),
-        filename="embedding_analytics_report.json"
-    )
+
+    if trigger == "btn-export-json":
+        report = _generate_structured_json(analytics)
+        return dcc.send_string(
+            json.dumps(report, indent=2),
+            filename="clip_analytics_report.json"
+        )
+    elif trigger == "btn-export-txt":
+        text = _generate_text_report(analytics)
+        return dcc.send_string(text, filename="clip_analytics_report.txt")
+
+    return no_update
 
 
 if __name__ == "__main__":
