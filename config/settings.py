@@ -131,6 +131,40 @@ class Config:
         "Mexico Earthquake":    "Earthquake",
     })
 
+    # Model Comparison (Ablation Study)
+    COMPARISON_MODELS: List[str] = field(
+        default_factory=lambda: ["clip", "siglip", "resnet50"]
+    )
+    MODEL_REGISTRY: dict = field(default_factory=lambda: {
+        "clip": {
+            "name": "CLIP ViT-B/32",
+            "hf_id": "openai/clip-vit-base-patch32",
+            "embedding_dim": 512,
+            "batch_size": 16,
+        },
+        "siglip": {
+            "name": "SigLIP-base",
+            "hf_id": "google/siglip-base-patch16-224",
+            "embedding_dim": 768,
+            "batch_size": 8,
+        },
+        "resnet50": {
+            "name": "ResNet50 (ImageNet)",
+            "hf_id": "torchvision",
+            "embedding_dim": 2048,
+            "batch_size": 16,
+        },
+    })
+    COMPARISON_REDUCTIONS: List[str] = field(
+        default_factory=lambda: ["umap", "tsne", "pca"]
+    )
+    COMPARISON_CLUSTERERS: List[str] = field(
+        default_factory=lambda: ["hdbscan", "kmeans"]
+    )
+    KMEANS_N_CLUSTERS: int = 7  # matches 7 disaster events
+    COMPARISON_DIR: Path = DATA_DIR / "comparison"
+    COMPARISON_CACHE_PATH: Path = DATA_DIR / "comparison" / "comparison_results.json"
+
     # Search & Classification Thresholds
     SEARCH_MIN_THRESHOLD: float = 0.28
     CLASSIFICATION_THRESHOLD: float = 0.22
@@ -193,6 +227,7 @@ class Config:
             self.REPORTS_DIR,
             self.FIGURES_DIR,
             self.FACE_CACHE_DIR,
+            self.COMPARISON_DIR,
         ]
         for d in dirs:
             d.mkdir(parents=True, exist_ok=True)

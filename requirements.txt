@@ -20,7 +20,7 @@ torchvision>=0.15.0
 
 # --- CLIP Model (Hugging Face) ---
 # We use transformers, NOT openai-clip, for consistent tokenisation
-transformers>=4.30.0
+transformers>=4.36.0
 
 # --- Dimensionality Reduction & Clustering ---
 umap-learn>=0.5.3

@@ -621,6 +621,8 @@ def analytics_page():
                         className="custom-tab", selected_className="custom-tab--selected"),
                 dcc.Tab(label="Topology", value="tab-topology",
                         className="custom-tab", selected_className="custom-tab--selected"),
+                dcc.Tab(label="Model Comparison", value="tab-comparison",
+                        className="custom-tab", selected_className="custom-tab--selected"),
                 dcc.Tab(label="Export", value="tab-export",
                         className="custom-tab", selected_className="custom-tab--selected"),
             ],
@@ -1003,6 +1005,9 @@ def render_analytics_tab(tab):
 
     elif tab == "tab-topology":
         return _build_topology_tab()
+
+    elif tab == "tab-comparison":
+        return _build_comparison_tab()
 
     elif tab == "tab-export":
         return _build_export_tab()
@@ -1554,6 +1559,255 @@ def _build_topology_tab():
                     dcc.Graph(figure=ev_fig, config={"displaylogo": False})
                 ], className="paper-card")
             ], md=5),
+        ], className="g-4"),
+    ])
+
+
+def _build_comparison_tab():
+    """Build the Model Comparison tab: 3 models x 3 reductions x 2 clusterers."""
+    from plotly.subplots import make_subplots
+
+    cache_path = config.COMPARISON_CACHE_PATH
+    if not cache_path.exists():
+        return html.Div([
+            html.Div([
+                html.H4("Model Comparison Not Available", className="paper-title mb-3"),
+                html.P([
+                    "The comparison pipeline has not been run yet. Execute these "
+                    "scripts in order:",
+                    html.Code(" python src/vectorise_models.py", className="d-block mt-2"),
+                    html.Code(" python src/model_comparison.py", className="d-block mt-1"),
+                ], className="text-secondary"),
+            ], className="paper-card")
+        ])
+
+    with open(cache_path, "r") as f:
+        results = json.load(f)
+
+    reduction_metrics = results["reduction_metrics"]
+    clustering_metrics = results["clustering_metrics"]
+    scatter_data = results["scatter_data"]
+    models = list(reduction_metrics.keys())
+    reductions = list(reduction_metrics[models[0]].keys())
+    model_names = {k: results["models"][k]["name"] for k in models}
+
+    reduction_colours = {"umap": "#2563eb", "tsne": "#16a34a", "pca": "#ea580c"}
+    clusterer_colours = {"hdbscan": "#2563eb", "kmeans": "#ea580c"}
+    event_colour_map = {
+        "California Wildfires": "#ea580c",
+        "Hurricane Harvey": "#2563eb",
+        "Hurricane Irma": "#0891b2",
+        "Hurricane Maria": "#7c3aed",
+        "Iraq-Iran Earthquake": "#dc2626",
+        "Mexico Earthquake": "#ca8a04",
+        "Sri Lanka Floods": "#16a34a",
+    }
+
+    # --- Grouped bar chart: Silhouette Score ---
+    sil_fig = go.Figure()
+    for reduction in reductions:
+        vals = [reduction_metrics[m][reduction]["silhouette_score"] for m in models]
+        sil_fig.add_trace(go.Bar(
+            name=reduction.upper(),
+            x=[model_names[m] for m in models], y=vals,
+            marker_color=reduction_colours[reduction],
+            text=["{:.3f}".format(v) for v in vals], textposition="outside",
+        ))
+    sil_fig.update_layout(
+        title="Silhouette Score (higher = better separation)",
+        barmode="group",
+        plot_bgcolor="#ffffff", paper_bgcolor="#ffffff",
+        font=dict(family="IBM Plex Sans"),
+        yaxis=dict(title="Score", gridcolor="#f1f5f9"),
+        margin=dict(l=50, r=20, t=50, b=60), height=340,
+    )
+
+    # --- Grouped bar chart: Davies-Bouldin Index ---
+    db_fig = go.Figure()
+    for reduction in reductions:
+        vals = [reduction_metrics[m][reduction]["davies_bouldin_index"] for m in models]
+        db_fig.add_trace(go.Bar(
+            name=reduction.upper(),
+            x=[model_names[m] for m in models], y=vals,
+            marker_color=reduction_colours[reduction],
+            text=["{:.2f}".format(v) for v in vals], textposition="outside",
+        ))
+    db_fig.update_layout(
+        title="Davies-Bouldin Index (lower = better)",
+        barmode="group",
+        plot_bgcolor="#ffffff", paper_bgcolor="#ffffff",
+        font=dict(family="IBM Plex Sans"),
+        yaxis=dict(title="Score", gridcolor="#f1f5f9"),
+        margin=dict(l=50, r=20, t=50, b=60), height=340,
+    )
+
+    # --- Grouped bar chart: Calinski-Harabasz Index ---
+    ch_fig = go.Figure()
+    for reduction in reductions:
+        vals = [reduction_metrics[m][reduction]["calinski_harabasz_index"] for m in models]
+        ch_fig.add_trace(go.Bar(
+            name=reduction.upper(),
+            x=[model_names[m] for m in models], y=vals,
+            marker_color=reduction_colours[reduction],
+            text=["{:.0f}".format(v) for v in vals], textposition="outside",
+        ))
+    ch_fig.update_layout(
+        title="Calinski-Harabasz Index (higher = denser clusters)",
+        barmode="group",
+        plot_bgcolor="#ffffff", paper_bgcolor="#ffffff",
+        font=dict(family="IBM Plex Sans"),
+        yaxis=dict(title="Score", gridcolor="#f1f5f9"),
+        margin=dict(l=50, r=20, t=50, b=60), height=340,
+    )
+
+    # --- 3x3 Scatter Plot Grid ---
+    subplot_titles = []
+    for m in models:
+        for r in reductions:
+            subplot_titles.append("{} + {}".format(model_names[m], r.upper()))
+
+    grid_fig = make_subplots(
+        rows=len(models), cols=len(reductions),
+        subplot_titles=subplot_titles,
+        horizontal_spacing=0.04,
+        vertical_spacing=0.06,
+    )
+
+    for i, model_key in enumerate(models):
+        for j, reduction in enumerate(reductions):
+            sd = scatter_data[model_key][reduction]
+            events_arr = sd["events"]
+            unique_events = sorted(set(events_arr))
+
+            for event in unique_events:
+                mask = [k for k, e in enumerate(events_arr) if e == event]
+                grid_fig.add_trace(go.Scattergl(
+                    x=[sd["x"][k] for k in mask],
+                    y=[sd["y"][k] for k in mask],
+                    mode="markers",
+                    marker=dict(
+                        size=3,
+                        color=event_colour_map.get(event, "#94a3b8"),
+                        opacity=0.6,
+                    ),
+                    name=event,
+                    showlegend=(i == 0 and j == 0),
+                    legendgroup=event,
+                    hovertemplate=event + "<extra></extra>",
+                ), row=i + 1, col=j + 1)
+
+    grid_fig.update_layout(
+        height=900,
+        title="Embedding Space Projections: 3 Models x 3 Reductions (2,000 samples each)",
+        plot_bgcolor="#ffffff", paper_bgcolor="#ffffff",
+        font=dict(family="IBM Plex Sans"),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+    )
+    grid_fig.update_xaxes(visible=False)
+    grid_fig.update_yaxes(visible=False)
+
+    # --- Clustering comparison bar chart ---
+    cluster_fig = go.Figure()
+    for clusterer in config.COMPARISON_CLUSTERERS:
+        vals = [clustering_metrics[m][clusterer]["silhouette_score"] for m in models]
+        cluster_fig.add_trace(go.Bar(
+            name=clusterer.upper(),
+            x=[model_names[m] for m in models], y=vals,
+            marker_color=clusterer_colours[clusterer],
+            text=["{:.3f}".format(v) for v in vals], textposition="outside",
+        ))
+    cluster_fig.update_layout(
+        title="Clustering Silhouette: HDBSCAN vs K-Means (k=7)",
+        barmode="group",
+        plot_bgcolor="#ffffff", paper_bgcolor="#ffffff",
+        font=dict(family="IBM Plex Sans"),
+        yaxis=dict(title="Silhouette Score", gridcolor="#f1f5f9"),
+        margin=dict(l=50, r=20, t=50, b=60), height=380,
+    )
+
+    # --- Trustworthiness + Continuity ---
+    trust_fig = go.Figure()
+    for reduction in reductions:
+        trust_vals = [reduction_metrics[m][reduction]["trustworthiness"] for m in models]
+        trust_fig.add_trace(go.Bar(
+            name="{} Trust.".format(reduction.upper()),
+            x=[model_names[m] for m in models], y=trust_vals,
+            marker_color=reduction_colours[reduction],
+            text=["{:.3f}".format(v) for v in trust_vals], textposition="outside",
+        ))
+    trust_fig.update_layout(
+        title="Trustworthiness (higher = neighbours preserved)",
+        barmode="group",
+        plot_bgcolor="#ffffff", paper_bgcolor="#ffffff",
+        font=dict(family="IBM Plex Sans"),
+        yaxis=dict(title="Score", gridcolor="#f1f5f9", range=[0, 1.05]),
+        margin=dict(l=50, r=20, t=50, b=60), height=380,
+    )
+
+    # --- Summary metric cards ---
+    def _model_card(key):
+        info = results["models"][key]
+        return html.Div([
+            html.P(info["name"], className="text-secondary mb-1",
+                   style={"fontSize": "0.75rem", "textTransform": "uppercase",
+                          "letterSpacing": "0.05em"}),
+            html.H4("{}-dim".format(info["embedding_dim"]), className="mb-0",
+                    style={"fontWeight": "700", "fontFamily": "IBM Plex Mono"}),
+            html.P("{:,} images".format(info["n_samples"]),
+                   className="text-secondary mb-0", style={"fontSize": "0.8rem"}),
+        ], className="paper-card text-center", style={"padding": "1rem"})
+
+    return html.Div([
+        # Explanation card
+        html.Div([
+            html.H4("Multi-Model Embedding Comparison (Ablation Study)",
+                    className="paper-title mb-3"),
+            html.P([
+                "This tab compares three embedding models across three dimensionality "
+                "reduction methods and two clustering algorithms. ",
+                html.Strong("CLIP ViT-B/32"),
+                " (OpenAI, softmax contrastive, 400M training pairs) vs ",
+                html.Strong("SigLIP-base"),
+                " (Google, sigmoid loss, 10B training pairs) vs ",
+                html.Strong("ResNet50"),
+                " (ImageNet baseline, no text understanding). ",
+                "Hardware constraint: all models selected to fit MX450 2GB VRAM.",
+            ], className="text-secondary mb-0"),
+        ], className="paper-card mb-4"),
+
+        # Model summary cards
+        dbc.Row([
+            dbc.Col(_model_card(m), md=4) for m in models
+        ], className="g-3 mb-4"),
+
+        # Row 1: Three metric bar charts
+        dbc.Row([
+            dbc.Col([html.Div([
+                dcc.Graph(figure=sil_fig, config={"displaylogo": False})
+            ], className="paper-card")], md=4),
+            dbc.Col([html.Div([
+                dcc.Graph(figure=db_fig, config={"displaylogo": False})
+            ], className="paper-card")], md=4),
+            dbc.Col([html.Div([
+                dcc.Graph(figure=ch_fig, config={"displaylogo": False})
+            ], className="paper-card")], md=4),
+        ], className="g-4 mb-4"),
+
+        # Row 2: 3x3 scatter grid (full width)
+        dbc.Row([
+            dbc.Col([html.Div([
+                dcc.Graph(figure=grid_fig, config={"displaylogo": False})
+            ], className="paper-card")], md=12),
+        ], className="g-4 mb-4"),
+
+        # Row 3: Clustering + Trustworthiness
+        dbc.Row([
+            dbc.Col([html.Div([
+                dcc.Graph(figure=cluster_fig, config={"displaylogo": False})
+            ], className="paper-card")], md=6),
+            dbc.Col([html.Div([
+                dcc.Graph(figure=trust_fig, config={"displaylogo": False})
+            ], className="paper-card")], md=6),
         ], className="g-4"),
     ])
 
