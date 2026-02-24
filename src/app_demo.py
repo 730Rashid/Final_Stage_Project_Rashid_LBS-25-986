@@ -1376,9 +1376,9 @@ def _build_topology_tab():
         yaxis=dict(title="Death radius", gridcolor="#f1f5f9", range=[0, max_val]),
         plot_bgcolor="#ffffff", paper_bgcolor="#ffffff",
         font=dict(family="IBM Plex Sans"),
-        margin=dict(l=60, r=20, t=50, b=60),
+        margin=dict(l=60, r=20, t=40, b=40),
         legend=dict(orientation="h", yanchor="bottom", y=1.01, xanchor="left", x=0),
-        height=480,
+        height=360,
     )
 
     # ------------------------------------------------------------------
@@ -1430,9 +1430,9 @@ def _build_topology_tab():
         yaxis=dict(title="Number of edges", gridcolor="#f1f5f9"),
         plot_bgcolor="#ffffff", paper_bgcolor="#ffffff",
         font=dict(family="IBM Plex Sans"),
-        margin=dict(l=60, r=20, t=50, b=60),
+        margin=dict(l=60, r=20, t=40, b=40),
         legend=dict(orientation="h", yanchor="bottom", y=1.01, xanchor="left", x=0),
-        height=380,
+        height=300,
     )
 
     # ------------------------------------------------------------------
@@ -1471,8 +1471,8 @@ def _build_topology_tab():
         yaxis=dict(title="Mean κ", gridcolor="#f1f5f9"),
         plot_bgcolor="#ffffff", paper_bgcolor="#ffffff",
         font=dict(family="IBM Plex Sans"),
-        margin=dict(l=50, r=20, t=50, b=100),
-        height=380,
+        margin=dict(l=50, r=20, t=40, b=70),
+        height=300,
     )
 
     # ------------------------------------------------------------------
@@ -1619,7 +1619,7 @@ def _build_comparison_tab():
         plot_bgcolor="#ffffff", paper_bgcolor="#ffffff",
         font=dict(family="IBM Plex Sans"),
         yaxis=dict(title="Score", gridcolor="#f1f5f9"),
-        margin=dict(l=50, r=20, t=50, b=60), height=340,
+        margin=dict(l=50, r=20, t=40, b=40), height=260,
     )
 
     # --- Grouped bar chart: Davies-Bouldin Index ---
@@ -1638,7 +1638,7 @@ def _build_comparison_tab():
         plot_bgcolor="#ffffff", paper_bgcolor="#ffffff",
         font=dict(family="IBM Plex Sans"),
         yaxis=dict(title="Score", gridcolor="#f1f5f9"),
-        margin=dict(l=50, r=20, t=50, b=60), height=340,
+        margin=dict(l=50, r=20, t=40, b=40), height=260,
     )
 
     # --- Grouped bar chart: Calinski-Harabasz Index ---
@@ -1657,7 +1657,7 @@ def _build_comparison_tab():
         plot_bgcolor="#ffffff", paper_bgcolor="#ffffff",
         font=dict(family="IBM Plex Sans"),
         yaxis=dict(title="Score", gridcolor="#f1f5f9"),
-        margin=dict(l=50, r=20, t=50, b=60), height=340,
+        margin=dict(l=50, r=20, t=40, b=40), height=260,
     )
 
     # --- 3x3 Scatter Plot Grid ---
@@ -1670,7 +1670,7 @@ def _build_comparison_tab():
         rows=len(models), cols=len(reductions),
         subplot_titles=subplot_titles,
         horizontal_spacing=0.04,
-        vertical_spacing=0.06,
+        vertical_spacing=0.05,
     )
 
     for i, model_key in enumerate(models):
@@ -1681,7 +1681,7 @@ def _build_comparison_tab():
 
             for event in unique_events:
                 mask = [k for k, e in enumerate(events_arr) if e == event]
-                grid_fig.add_trace(go.Scattergl(
+                grid_fig.add_trace(go.Scatter(
                     x=[sd["x"][k] for k in mask],
                     y=[sd["y"][k] for k in mask],
                     mode="markers",
@@ -1697,7 +1697,7 @@ def _build_comparison_tab():
                 ), row=i + 1, col=j + 1)
 
     grid_fig.update_layout(
-        height=900,
+        height=680,
         title="Embedding Space Projections: 3 Models x 3 Reductions (2,000 samples each)",
         plot_bgcolor="#ffffff", paper_bgcolor="#ffffff",
         font=dict(family="IBM Plex Sans"),
@@ -1722,7 +1722,7 @@ def _build_comparison_tab():
         plot_bgcolor="#ffffff", paper_bgcolor="#ffffff",
         font=dict(family="IBM Plex Sans"),
         yaxis=dict(title="Silhouette Score", gridcolor="#f1f5f9"),
-        margin=dict(l=50, r=20, t=50, b=60), height=380,
+        margin=dict(l=50, r=20, t=40, b=40), height=290,
     )
 
     # --- Trustworthiness + Continuity ---
@@ -1741,7 +1741,7 @@ def _build_comparison_tab():
         plot_bgcolor="#ffffff", paper_bgcolor="#ffffff",
         font=dict(family="IBM Plex Sans"),
         yaxis=dict(title="Score", gridcolor="#f1f5f9", range=[0, 1.05]),
-        margin=dict(l=50, r=20, t=50, b=60), height=380,
+        margin=dict(l=50, r=20, t=40, b=40), height=290,
     )
 
     # --- Summary metric cards ---

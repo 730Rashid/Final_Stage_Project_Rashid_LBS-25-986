@@ -85,16 +85,22 @@ def run_reduction(embeddings: np.ndarray, method: str) -> np.ndarray:
 
     elif method == "tsne":
         print("    t-SNE: {} samples x {}-dim (this may take 10-30 min)...".format(n, d))
+        # L2-normalise so Euclidean distance == cosine distance (monotonically).
+        # Using metric="cosine" in sklearn t-SNE forces full O(N^2) pairwise
+        # distance chunks which OOMs at 17k samples; euclidean uses ball-tree kNN.
+        norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
+        norms = np.where(norms == 0, 1.0, norms)
+        emb_normed = embeddings / norms
         reducer = TSNE(
             n_components=2,
             perplexity=config.TSNE_PERPLEXITY,
             learning_rate=config.TSNE_LEARNING_RATE,
-            n_iter=config.TSNE_N_ITER,
+            max_iter=config.TSNE_N_ITER,
             random_state=config.TSNE_RANDOM_STATE,
-            metric="cosine",
+            metric="euclidean",
             verbose=2,
         )
-        return reducer.fit_transform(embeddings)
+        return reducer.fit_transform(emb_normed)
 
     elif method == "pca":
         reducer = PCA(
@@ -130,14 +136,33 @@ def run_clustering(embeddings: np.ndarray, method: str) -> np.ndarray:
     raise ValueError("Unknown clustering method: {}".format(method))
 
 
+_TRUST_SAMPLE = 3000  # max samples for O(N^2) trustworthiness computation
+
+
+def _subsample_pair(high_dim: np.ndarray, low_dim: np.ndarray,
+                    max_n: int = _TRUST_SAMPLE) -> tuple:
+    """Return a consistent subsample of both arrays if N > max_n."""
+    n = len(high_dim)
+    if n <= max_n:
+        return high_dim, low_dim, n
+    rng = np.random.RandomState(42)
+    idx = rng.choice(n, max_n, replace=False)
+    return high_dim[idx], low_dim[idx], max_n
+
+
 def compute_trustworthiness(high_dim: np.ndarray, low_dim: np.ndarray,
                             n_neighbors: int = 12) -> float:
     """Trustworthiness: are low-dim neighbours also near in the original space?"""
-    n = len(high_dim)
-    print("    Computing trustworthiness ({} samples, k={})...".format(n, n_neighbors))
+    n_orig = len(high_dim)
+    hd, ld, n = _subsample_pair(high_dim, low_dim)
+    if n < n_orig:
+        print("    Computing trustworthiness (subsampled {}/{} samples, k={})...".format(
+            n, n_orig, n_neighbors))
+    else:
+        print("    Computing trustworthiness ({} samples, k={})...".format(n, n_neighbors))
     print("      Building distance matrices...", end=" ", flush=True)
     t0 = time.time()
-    score = float(trustworthiness(high_dim, low_dim, n_neighbors=n_neighbors))
+    score = float(trustworthiness(hd, ld, n_neighbors=n_neighbors))
     print("done ({:.1f}s) -> {:.4f}".format(time.time() - t0, score))
     return score
 
@@ -145,11 +170,16 @@ def compute_trustworthiness(high_dim: np.ndarray, low_dim: np.ndarray,
 def compute_continuity(high_dim: np.ndarray, low_dim: np.ndarray,
                        n_neighbors: int = 12) -> float:
     """Continuity: are original-space neighbours preserved in the reduction?"""
-    n = len(high_dim)
-    print("    Computing continuity ({} samples, k={})...".format(n, n_neighbors))
+    n_orig = len(high_dim)
+    hd, ld, n = _subsample_pair(high_dim, low_dim)
+    if n < n_orig:
+        print("    Computing continuity (subsampled {}/{} samples, k={})...".format(
+            n, n_orig, n_neighbors))
+    else:
+        print("    Computing continuity ({} samples, k={})...".format(n, n_neighbors))
     print("      Building distance matrices...", end=" ", flush=True)
     t0 = time.time()
-    score = float(trustworthiness(low_dim, high_dim, n_neighbors=n_neighbors))
+    score = float(trustworthiness(ld, hd, n_neighbors=n_neighbors))
     print("done ({:.1f}s) -> {:.4f}".format(time.time() - t0, score))
     return score
 
