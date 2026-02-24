@@ -149,7 +149,6 @@ def save_results(coords: np.ndarray, filenames: Optional[List[str]]) -> None:
         print("Copied filenames to: {}".format(filenames_path))
 
 
-
 def main():
     """Main entry point."""
     print("Starting UMAP Reduction Pipeline...")
@@ -167,7 +166,6 @@ def main():
     save_results(coords, filenames)
     
     print("Pipeline complete.")
-    print("Use the coordinates in your Dash visualisation")
 
 
 if __name__ == "__main__":

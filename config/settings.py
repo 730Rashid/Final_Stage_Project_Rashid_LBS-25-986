@@ -84,9 +84,6 @@ class Config:
     PCA_WHITEN: bool = False
     
     # Clustering (HDBSCAN)
-    # min_cluster_size: minimum number of samples in a cluster (higher = fewer, larger clusters)
-    # min_samples: core sample density threshold (higher = stricter core definition)
-    
     HDBSCAN_MIN_CLUSTER_SIZE: int = 50
     HDBSCAN_MIN_SAMPLES: int = 10
     HDBSCAN_METRIC: str = "euclidean"
@@ -137,22 +134,22 @@ class Config:
     )
     MODEL_REGISTRY: dict = field(default_factory=lambda: {
         "clip": {
-            "name": "CLIP ViT-B/32",
-            "hf_id": "openai/clip-vit-base-patch32",
+            "name":          "CLIP ViT-B/32",
+            "hf_id":         "openai/clip-vit-base-patch32",
             "embedding_dim": 512,
-            "batch_size": 16,
+            "batch_size":    16,
         },
         "siglip": {
-            "name": "SigLIP-base",
-            "hf_id": "google/siglip-base-patch16-224",
+            "name":          "SigLIP-base",
+            "hf_id":         "google/siglip-base-patch16-224",
             "embedding_dim": 768,
-            "batch_size": 8,
+            "batch_size":    8,
         },
         "resnet50": {
-            "name": "ResNet50 (ImageNet)",
-            "hf_id": "torchvision",
+            "name":          "ResNet50 (ImageNet)",
+            "hf_id":         "torchvision",
             "embedding_dim": 2048,
-            "batch_size": 16,
+            "batch_size":    16,
         },
     })
     COMPARISON_REDUCTIONS: List[str] = field(
@@ -161,7 +158,7 @@ class Config:
     COMPARISON_CLUSTERERS: List[str] = field(
         default_factory=lambda: ["hdbscan", "kmeans"]
     )
-    KMEANS_N_CLUSTERS: int = 7  # matches 7 disaster events
+    KMEANS_N_CLUSTERS: int = 7
     COMPARISON_DIR: Path = DATA_DIR / "comparison"
     COMPARISON_CACHE_PATH: Path = DATA_DIR / "comparison" / "comparison_results.json"
 
@@ -179,8 +176,8 @@ class Config:
     FACE_DETECT_MIN_NEIGHBORS: int = 3
     FACE_DETECT_MIN_SIZE: Tuple[int, int] = (20, 20)
 
-    # Privacy - YuNet Deep Learning Face Detection
-    # "yunet" uses OpenCV's built-in DNN face detector (fast, accurate, ~230KB model)
+    # Privacy: YuNet Deep Learning Face Detection
+    # "yunet" uses OpenCV's built in DNN face detector (fast, accurate, 230KB model)
     # "haar" falls back to Haar cascades (no model file needed)
     FACE_DETECT_MODEL: str = "yunet"
     YUNET_MODEL_PATH: Path = DATA_DIR / "models" / "face_detection_yunet_2023mar.onnx"

@@ -1,57 +1,47 @@
-# ============================================================
-# Disaster Visualisation Project - Dependencies
-# ============================================================
+# Disaster Visualisation Project
 # Author: Rashid
 # Supervisor: XinHui Ma
 # Project: Visualising Natural Disaster Image Embeddings
-# ============================================================
 #
-# INSTALLATION:
-#   pip install -r requirements.txt
+# Installation: pip install -r requirements.txt
 #
-# IMPORTANT: This project uses Hugging Face Transformers for CLIP,
-# NOT the OpenAI clip library. This ensures tokeniser consistency
+# This project uses Hugging Face Transformers for CLIP,
+# not the OpenAI clip library. This ensures tokeniser consistency
 # between vectorise.py and app_demo.py.
-# ============================================================
 
-# --- Core ML Framework ---
+# Core ML Framework
 torch>=2.0.0
 torchvision>=0.15.0
 
-# --- CLIP Model (Hugging Face) ---
-# We use transformers, NOT openai-clip, for consistent tokenisation
+# CLIP Model (Hugging Face)
 transformers>=4.36.0
 
-# --- Dimensionality Reduction & Clustering ---
+# Dimensionality Reduction and Clustering
 umap-learn>=0.5.3
 scikit-learn>=1.3.0
 hdbscan>=0.8.33
 
-# --- Data Processing ---
+# Data Processing
 numpy>=1.24.0
 pandas>=2.0.0
 Pillow>=10.0.0
 
-# --- Visualisation & Web App ---
+# Visualisation and Web App
 plotly>=5.15.0
 dash>=2.11.0
 dash-bootstrap-components>=1.4.0
 flask>=2.3.0
 
-# --- Utilities ---
+# Utilities
 tqdm>=4.65.0
 h5py>=3.9.0
 
-# --- Face Detection ---
-# YuNet uses OpenCV's built-in DNN module (no extra packages needed).
-# The ONNX model file (~230KB) lives at data/models/face_detection_yunet_2023mar.onnx
+# Face Detection
+# YuNet uses OpenCV's built in DNN module (no extra packages needed).
+# The ONNX model file (230KB) lives at data/models/face_detection_yunet_2023mar.onnx
 opencv-python-headless>=4.8.0
 
-# --- Topological Data Analysis ---
-ripser>=0.6.0           # Vietoris-Rips persistent homology (Cython, fast)
-pot>=0.9.0              # Python Optimal Transport — Earth Mover's Distance for Ollivier-Ricci curvature
-networkx>=3.0           # Graph construction for Ricci curvature
-
-# --- Development (Optional) ---
-# pytest>=7.4.0
-# black>=23.0.0
+# Topological Data Analysis
+ripser>=0.6.0
+pot>=0.9.0
+networkx>=3.0

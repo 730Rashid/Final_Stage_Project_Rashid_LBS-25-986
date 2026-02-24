@@ -11,10 +11,10 @@ newer transformers versions) since it only requires the final hidden states,
 not raw attention weight tensors.
 
 ViT-B/32 geometry:
-  - Input: 224×224
-  - Patch size: 32×32
-  - Patches: 7×7 = 49 spatial tokens + 1 CLS token = 50 total tokens
-  - Hidden dim: 768
+    Input: 224x224
+    Patch size: 32x32
+    Patches: 7x7 = 49 spatial tokens + 1 CLS token = 50 total tokens
+    Hidden dim: 768
 
 Author: Rashid
 Supervisor: XinHui Ma
@@ -33,7 +33,7 @@ class CLIPAttentionRollout:
 
     For each image patch in the final hidden layer, the cosine similarity to
     the CLS token is computed. High similarity means that patch contributed
-    strongly to the global image representation — i.e. where CLIP was focusing.
+    strongly to the global image representation, i.e. where CLIP was focusing.
 
     Works with all HuggingFace transformers versions regardless of attention
     implementation (eager, SDPA, Flash Attention).
@@ -76,7 +76,7 @@ class CLIPAttentionRollout:
                 return_dict=True
             )
 
-        # last_hidden_state: (1, 50, 768) — token 0 is CLS, tokens 1–49 are patches
+        # last_hidden_state: (1, 50, 768), token 0 is CLS, tokens 1 to 49 are patches
         hidden = vision_outputs.last_hidden_state[0]  # (50, 768)
 
         cls_vec   = hidden[0:1]     # (1, 768)
@@ -90,7 +90,7 @@ class CLIPAttentionRollout:
         # Normalise to [0, 1]
         sim = (sim - sim.min()) / (sim.max() - sim.min() + 1e-8)
 
-        # Reshape to 7×7 spatial grid and resize to original image dimensions
+        # Reshape to 7x7 spatial grid and resize to original image dimensions
         grid = sim.reshape(self.PATCH_GRID, self.PATCH_GRID)
         h, w = img_np.shape[:2]
         mask = cv2.resize(grid, (w, h), interpolation=cv2.INTER_CUBIC)
@@ -117,6 +117,5 @@ class CLIPAttentionRollout:
 
         result_bytes = buffer.tobytes()
         self._cache[image_path] = result_bytes
-        
-        
+
         return result_bytes

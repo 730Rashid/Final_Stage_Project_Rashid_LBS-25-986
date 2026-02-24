@@ -279,7 +279,7 @@ def serve_image(p):
     if img is None:
         return send_from_directory(str(path.parent), path.name)
 
-    # Detect faces — try YuNet first, fall back to Haar cascades
+    # Detect faces, try YuNet first, fall back to Haar cascades
     try:
         faces = None
         if config.FACE_DETECT_MODEL == "yunet":
@@ -294,7 +294,7 @@ def serve_image(p):
             img = _blur_faces(img, faces)
             
     except Exception:
-        pass  # Face detection failure — serve image unblurred rather than 500
+        pass  # Face detection failure, serve image unblurred rather than 500
 
     # Encode to JPEG
     _, buffer = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 90])
@@ -346,7 +346,7 @@ def create_badge(label, confidence):
     )
 
 
-# Page Layouts for the Websites
+# Page Layouts
 
 def overview_page():
     """Overview landing page - Research Abstract Style."""
@@ -797,7 +797,7 @@ def update_view(n_clicks, n_submit, selected_event, selected_cluster, clicked_in
     
     # Build status message
     if filter_parts:
-        status = "{:,} images in {}".format(len(filtered_df), " ∩ ".join(filter_parts))
+        status = "{:,} images in {}".format(len(filtered_df), " + ".join(filter_parts))
     else:
         status = "{:,} images".format(len(df))
     
@@ -1166,7 +1166,7 @@ def _build_transfer_tab(analytics):
         )
     ))
     retrieval_fig.update_layout(
-        title="Cross-Event Retrieval Transfer (Source → Target Centroid Similarity)",
+        title="Cross-Event Retrieval Transfer (Source to Target Centroid Similarity)",
         plot_bgcolor="#ffffff", paper_bgcolor="#ffffff",
         font=dict(family="IBM Plex Sans"),
         margin=dict(l=140, r=20, t=50, b=120),
@@ -1260,7 +1260,7 @@ def _build_transfer_tab(analytics):
                 "This tab analyses how CLIP representations transfer across disaster events and types. ",
                 "The ",
                 html.Strong("retrieval heatmap"),
-                " shows directional similarity (source images → target centroid). ",
+                " shows directional similarity (source images to target centroid). ",
                 "The ",
                 html.Strong("LOO classification"),
                 " tests if held-out event images can be classified by disaster type using remaining centroids. ",
@@ -1299,9 +1299,7 @@ def _build_topology_tab():
     """Build the Topology tab: Persistent Homology + Ollivier-Ricci Curvature."""
     topo = get_topology_analytics()
 
-    # ------------------------------------------------------------------
     # Phase 1: Persistence Diagram (H0 + H1)
-    # ------------------------------------------------------------------
     ph   = topo.persistence_homology()
     h0   = ph["h0"]
     h1   = ph["h1"]
@@ -1326,7 +1324,7 @@ def _build_topology_tab():
         hoverinfo="skip",
     ))
 
-    # H0 features — connected components
+    # H0 features (connected components)
     if h0["birth"]:
         h0_sizes = [6 + 20 * p / (h0["max_persistence"] + 1e-9)
                     for p in h0["persistence"]]
@@ -1337,7 +1335,7 @@ def _build_topology_tab():
                 color="#2563eb", size=h0_sizes, opacity=0.75,
                 line=dict(width=1, color="#1e40af"),
             ),
-            name="H0 — Connected components ({} features)".format(h0["n_features"]),
+            name="H0: Connected components ({} features)".format(h0["n_features"]),
             hovertemplate=(
                 "H0 feature<br>"
                 "Birth: %{x:.4f}<br>"
@@ -1347,7 +1345,7 @@ def _build_topology_tab():
             customdata=h0["persistence"],
         ))
 
-    # H1 features — loops / cycles
+    # H1 features (loops / cycles)
     if h1["birth"]:
         h1_sizes = [8 + 24 * p / (h1["max_persistence"] + 1e-9)
                     for p in h1["persistence"]]
@@ -1359,7 +1357,7 @@ def _build_topology_tab():
                 symbol="diamond",
                 line=dict(width=1, color="#991b1b"),
             ),
-            name="H1 — Loops / cycles ({} features)".format(h1["n_features"]),
+            name="H1: Loops / cycles ({} features)".format(h1["n_features"]),
             hovertemplate=(
                 "H1 feature<br>"
                 "Birth: %{x:.4f}<br>"
@@ -1370,7 +1368,7 @@ def _build_topology_tab():
         ))
 
     pd_fig.update_layout(
-        title="Persistence Diagram — Vietoris-Rips on {} images (cosine distance)".format(
+        title="Persistence Diagram: Vietoris-Rips on {} images (cosine distance)".format(
             ph["sample_size"]),
         xaxis=dict(title="Birth radius", gridcolor="#f1f5f9", range=[0, max_val]),
         yaxis=dict(title="Death radius", gridcolor="#f1f5f9", range=[0, max_val]),
@@ -1381,13 +1379,11 @@ def _build_topology_tab():
         height=360,
     )
 
-    # ------------------------------------------------------------------
-    # Phase 2: Ollivier-Ricci Curvature — Histogram
-    # ------------------------------------------------------------------
+    # Phase 2: Ollivier-Ricci Curvature Histogram
     ricci = topo.ollivier_ricci_curvature()
     curvs = ricci["edge_curvatures"]
 
-    # Build a colour-coded histogram: red bins (κ < 0) vs blue bins (κ > 0)
+    # Build a colour-coded histogram: red bins (kappa < 0) vs blue bins (kappa > 0)
     curv_arr = np.array(curvs)
     neg_vals = curv_arr[curv_arr < 0].tolist()
     pos_vals = curv_arr[curv_arr >= 0].tolist()
@@ -1396,37 +1392,37 @@ def _build_topology_tab():
     if neg_vals:
         hist_fig.add_trace(go.Histogram(
             x=neg_vals,
-            name="Negative κ — bridge / bottleneck ({:.1f}%)".format(
+            name="Negative kappa, bridge / bottleneck ({:.1f}%)".format(
                 ricci["pct_negative"]),
             marker_color="#dc2626", opacity=0.8,
             nbinsx=30,
-            hovertemplate="κ range: %{x}<br>Edges: %{y}<extra></extra>",
+            hovertemplate="kappa range: %{x}<br>Edges: %{y}<extra></extra>",
         ))
     if pos_vals:
         hist_fig.add_trace(go.Histogram(
             x=pos_vals,
-            name="Positive κ — dense cluster ({:.1f}%)".format(
+            name="Positive kappa, dense cluster ({:.1f}%)".format(
                 ricci["pct_positive"]),
             marker_color="#2563eb", opacity=0.8,
             nbinsx=30,
-            hovertemplate="κ range: %{x}<br>Edges: %{y}<extra></extra>",
+            hovertemplate="kappa range: %{x}<br>Edges: %{y}<extra></extra>",
         ))
 
     hist_fig.add_vline(
         x=0, line_dash="dash", line_color="#64748b",
-        annotation_text="κ = 0 (flat)",
+        annotation_text="kappa = 0 (flat)",
         annotation_position="top right",
     )
     hist_fig.add_vline(
         x=ricci["global_mean"], line_dash="dot", line_color="#7c3aed",
-        annotation_text="Mean κ = {:.3f}".format(ricci["global_mean"]),
+        annotation_text="Mean kappa = {:.3f}".format(ricci["global_mean"]),
         annotation_position="top left",
     )
     hist_fig.update_layout(
-        title="Ollivier-Ricci Curvature Histogram — {}-NN graph on {} images".format(
+        title="Ollivier-Ricci Curvature Histogram: {}-NN graph on {} images".format(
             ricci["k_neighbors"], ricci["sample_size"]),
         barmode="overlay",
-        xaxis=dict(title="Curvature κ(u, v)", gridcolor="#f1f5f9"),
+        xaxis=dict(title="Curvature kappa(u, v)", gridcolor="#f1f5f9"),
         yaxis=dict(title="Number of edges", gridcolor="#f1f5f9"),
         plot_bgcolor="#ffffff", paper_bgcolor="#ffffff",
         font=dict(family="IBM Plex Sans"),
@@ -1435,9 +1431,7 @@ def _build_topology_tab():
         height=300,
     )
 
-    # ------------------------------------------------------------------
     # Phase 2b: Per-event mean curvature bar chart
-    # ------------------------------------------------------------------
     type_groups = config.DISASTER_TYPE_GROUPS
     type_colours = {
         "Wildfire":       "#ea580c",
@@ -1458,26 +1452,24 @@ def _build_topology_tab():
         marker_color=ev_colours,
         text=["{:.3f}".format(v) for v in ev_vals],
         textposition="outside",
-        hovertemplate="<b>%{x}</b><br>Mean κ: %{y:.4f}<extra></extra>",
+        hovertemplate="<b>%{x}</b><br>Mean kappa: %{y:.4f}<extra></extra>",
     )])
     ev_fig.add_hline(
         y=0, line_color="#64748b", line_dash="dash",
-        annotation_text="κ = 0",
+        annotation_text="kappa = 0",
         annotation_position="top right",
     )
     ev_fig.update_layout(
         title="Mean Intra-Event Curvature per Disaster",
         xaxis=dict(tickangle=-30),
-        yaxis=dict(title="Mean κ", gridcolor="#f1f5f9"),
+        yaxis=dict(title="Mean kappa", gridcolor="#f1f5f9"),
         plot_bgcolor="#ffffff", paper_bgcolor="#ffffff",
         font=dict(family="IBM Plex Sans"),
         margin=dict(l=50, r=20, t=40, b=70),
         height=300,
     )
 
-    # ------------------------------------------------------------------
     # Summary metric cards
-    # ------------------------------------------------------------------
     def _metric_card(label, value, sub=""):
         return html.Div([
             html.P(label, className="text-secondary mb-1",
@@ -1505,7 +1497,7 @@ def _build_topology_tab():
                 "geometry to characterise the global structure of the disaster embedding space. ",
                 html.Strong("Persistent homology"),
                 " (Vietoris-Rips filtration) reveals how many distinct semantic clusters "
-                "exist and whether any topological 'holes' are present — regions of semantic "
+                "exist and whether any topological 'holes' are present, regions of semantic "
                 "ambiguity not captured by any single cluster. ",
                 html.Strong("Ollivier-Ricci curvature"),
                 " measures the local geometry of the embedding graph: positive curvature "
@@ -1532,7 +1524,7 @@ def _build_topology_tab():
                 geo_type
             ), md=3),
             dbc.Col(_metric_card(
-                "Bridge Edges (κ < 0)",
+                "Bridge Edges (kappa < 0)",
                 "{:.1f}%".format(ricci["pct_negative"]),
                 "of {} total edges".format(ricci["n_edges"])
             ), md=3),

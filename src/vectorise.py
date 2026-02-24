@@ -121,7 +121,7 @@ def process_images(
             with torch.no_grad():
                 outputs = model.get_image_features(**inputs)
             
-            # Normalise which is needed for Cosine Similarity
+            # L2 normalise for cosine similarity
             outputs = outputs / outputs.norm(p=2, dim=-1, keepdim=True)
             
             embeddings.append(outputs.cpu().numpy())
@@ -179,7 +179,7 @@ def main() -> None:
     embeddings, valid_paths, corrupt_files = process_images(model, processor, device, image_paths)
     save_results(embeddings, valid_paths, corrupt_files)
     
-    print("\nPipeline complete! Now run UMAP reduction.")
+    print("\nPipeline complete.")
 
 
 if __name__ == "__main__":

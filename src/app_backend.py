@@ -60,7 +60,7 @@ LABEL_DISPLAY_NAMES = {
 }
 
 
-# Damage Severity Scoring — two-anchor contrast approach.
+# Damage Severity Scoring: two-anchor contrast approach.
 # CLIP discriminates better between visually opposite extremes than between
 # subtle gradient phrases that all share similar vocabulary.
 SEVERITY_HIGH_ANCHOR = "collapsed rubble destroyed ruins catastrophic damage debris everywhere"
@@ -97,9 +97,9 @@ class CrisisDataManager:
         self.severity_embeddings = None
         self.device = None
         self.analytics = None
-        self.topology  = None          # Lazy-loaded TopologyAnalytics
-        self.captioner = None         # Lazy-loaded CLIP interrogator
-        self.heatmap_extractor = None  # Lazy-loaded attention rollout
+        self.topology = None
+        self.captioner = None
+        self.heatmap_extractor = None
         self._loaded = False
     
     def load(self) -> bool:

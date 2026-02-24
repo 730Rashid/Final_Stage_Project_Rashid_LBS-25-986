@@ -142,7 +142,7 @@ class CLIPInterrogator:
                     text=phrases,
                     return_tensors="pt",
                     padding=True
-                ).to(self.device) # Set to GPU for faster compute
+                ).to(self.device)
 
                 with torch.no_grad():
                     text_features = self.clip_model.get_text_features(**inputs)
@@ -318,7 +318,6 @@ class CLIPInterrogator:
         captions = []
 
         for i in range(len(image_embeddings)):
-            
             embedding = image_embeddings[i]
             interrogation = self.interrogate(embedding, confidence_threshold)
             caption = self.compose_caption(interrogation, style)
@@ -352,9 +351,7 @@ class CLIPInterrogator:
         }
 
         for category, (phrase, confidence) in interrogation_result.items():
-            
             display_name = category_names.get(category, category)
-            
             breakdown[display_name] = {
                 "phrase": phrase.capitalize(),
                 "confidence": confidence,
@@ -389,4 +386,4 @@ def caption_image(
 
 
 if __name__ == "__main__":
-    print("\n Captioning using CLIP \n")
+    print("CLIP Captioning Module")

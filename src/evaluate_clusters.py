@@ -6,9 +6,9 @@ how well the ground-truth event categories are separated in the reduced
 space. It provides quantitative metrics for the dissertation.
 
 Metrics Calculated:
-    - Silhouette Score: Measures cluster cohesion and separation (-1 to 1).
-    - Davies-Bouldin Index: Lower values indicate better clustering.
-    - Calinski-Harabasz Index: Higher values indicate denser, well-separated clusters.
+    Silhouette Score: Measures cluster cohesion and separation (-1 to 1).
+    Davies-Bouldin Index: Lower values indicate better clustering.
+    Calinski-Harabasz Index: Higher values indicate denser, well-separated clusters.
 
 Author: Rashid
 Supervisor: XinHui Ma
@@ -108,7 +108,7 @@ def calculate_metrics(coords: np.ndarray, labels: list) -> dict:
         silhouette_quality = "Weak separation"
     
     else:
-        silhouette_quality = "Poor - overlapping clusters"
+        silhouette_quality = "Poor, overlapping clusters"
     
     if davies_bouldin < 1.0:
         db_quality = "Excellent clustering"

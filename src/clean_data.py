@@ -29,25 +29,15 @@ sys.path.insert(0, str(PROJECT_ROOT))
 from config.settings import config
 
 
-# Configuration
-# Input folder containing raw CrisisMMD images, some of the images may have noise and some unrelated images that has nothing to do with Natural Disasters.
+# Paths
 RAW_DATA_PATH = PROJECT_ROOT / "data" / "raw" / "CrisisMMD_v2.0" / "data_image"
-
-# Output folder for cleaned images
 CLEAN_DATA_PATH = PROJECT_ROOT / "data" / "processed" / "clean_data"
 
 # Quality thresholds
-# Images smaller than this will be rejected
 MIN_WIDTH = 200
 MIN_HEIGHT = 200
-
-# Images with extreme aspect ratios will be rejected
-# This filters out banners, sidebars, and other non-standard shapes
 MAX_ASPECT_RATIO = 4.0
 MIN_ASPECT_RATIO = 0.25
-
-# Minimum file size in bytes
-# Very small files are often placeholder images
 MIN_FILE_SIZE = 5000
 
 
@@ -94,8 +84,7 @@ def is_valid_image(file_path: Path) -> Tuple[bool, str]:
     except Exception as e:
         return False, "Corrupt file ({})".format(type(e).__name__)
     
-    # Check resolution and aspect ratio of the image and try to make it compatiable for parsing.
-
+    # Check resolution and aspect ratio
     try:
         with Image.open(file_path) as img:
             width, height = img.size
@@ -125,7 +114,7 @@ def clean_dataset() -> None:
     structure is preserved so that event categories remain intact.
     """
     print("Data Cleaning Pipeline...")
-    print("Timestamp: {}".format(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))) # We check the time to make sure it is runnning in real time.
+    print("Timestamp: {}".format(datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     
     # Check input folder exists
     if not RAW_DATA_PATH.exists():
@@ -139,7 +128,7 @@ def clean_dataset() -> None:
     
     print("Scanning for images...")
     
-    # Find all image files from all formats.
+    # Find all image files
     image_files = []
 
     for ext in config.IMAGE_EXTENSIONS:
@@ -268,15 +257,9 @@ def clean_dataset() -> None:
         json.dump(summary, f, indent=2)
     
     print("Logs saved to: {}, {}".format(error_log_path, summary_path))
-    
+
     print("")
-    print("Cleaning Complete. Output: {}".format(CLEAN_DATA_PATH))
-    print("  Clean data saved to: {}".format(CLEAN_DATA_PATH))
-    print("")
-    print("  Next step:")
-    print("  Update DATASET_PATH in vectorise.py to point to the clean_data")
-    print("  folder, then run: python src/vectorise.py in the terminal")
-    print("")
+    print("Cleaning complete. Output: {}".format(CLEAN_DATA_PATH))
 
 
 if __name__ == "__main__":
