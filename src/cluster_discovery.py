@@ -341,11 +341,11 @@ def save_results(
     print("  Saved cluster metadata to: {}".format(metadata_path))
     
     # Print summary
-    print("")
     print("Cluster Summary:")
-    print("-" * 50)
+    
     for cluster_id in sorted(cluster_stats.keys()):
         info = cluster_stats[cluster_id]
+        
         print("  {:3d}: {:30s} ({:,} images, conf: {:.2f})".format(
             cluster_id,
             info["name"][:30],
