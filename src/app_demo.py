@@ -94,35 +94,50 @@ server = app.server
 
 # Face Detection Setup
 # YuNet is OpenCV's built-in deep learning face detector (~230KB model).
-# A fresh detector is created per image to avoid OpenCV DNN backend state
-# corruption when setInputSize is called with varying dimensions.
+# It's loaded once and reused across all requests for performance.
 # If YuNet fails to load we then fall back to Haar cascades automatically.
+_yunet_detector = None
 _yunet_available = None  # None = not yet checked, True/False = result
 
 
-def _check_yunet():
-    """Check once whether YuNet model file exists and can be loaded."""
-    global _yunet_available
+def _load_yunet():
+    """
+    Load the YuNet face detector once.
+
+    YuNet is a lightweight CNN-based face detector bundled with OpenCV.
+    It's much more accurate than Haar cascades while using minimal memory.
+    Returns the detector instance or None on failure.
+    """
+    global _yunet_detector, _yunet_available
 
     if _yunet_available is not None:
-        return _yunet_available
+        return _yunet_detector
 
     model_path = str(config.YUNET_MODEL_PATH)
 
     if not config.YUNET_MODEL_PATH.exists():
         print("YuNet model not found at {}, falling back to Haar cascades".format(model_path))
         _yunet_available = False
-        return False
+        return None
 
     try:
-        cv2.FaceDetectorYN.create(model_path, "", (320, 320))
+        # Create detector with a placeholder input size (updated per image later)
+        _yunet_detector = cv2.FaceDetectorYN.create(
+            model_path,
+            "",
+            (320, 320),
+            config.YUNET_CONFIDENCE_THRESHOLD,
+            config.YUNET_NMS_THRESHOLD,
+            5000
+        )
         _yunet_available = True
-        print("YuNet face detector available (deep learning, ~230KB model)")
+        print("YuNet face detector loaded (deep learning, ~230KB model)")
     except Exception as e:
         print("YuNet unavailable, falling back to Haar cascades: {}".format(e))
+        _yunet_detector = None
         _yunet_available = False
 
-    return _yunet_available
+    return _yunet_detector
 
 
 def _detect_faces_yunet(img):
@@ -133,19 +148,13 @@ def _detect_faces_yunet(img):
     matching the format used by the Haar cascade fallback.
     Returns None if YuNet is unavailable (signals fallback to Haar).
     """
-    if not _check_yunet():
+    detector = _load_yunet()
+    if detector is None:
         return None
 
     try:
         h, w = img.shape[:2]
-        detector = cv2.FaceDetectorYN.create(
-            str(config.YUNET_MODEL_PATH),
-            "",
-            (w, h),
-            config.YUNET_CONFIDENCE_THRESHOLD,
-            config.YUNET_NMS_THRESHOLD,
-            5000
-        )
+        detector.setInputSize((w, h))
         _, detections = detector.detect(img)
     except Exception as e:
         print("YuNet detection failed, using Haar fallback: {}".format(e))

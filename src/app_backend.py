@@ -496,8 +496,10 @@ def get_manager() -> CrisisDataManager:
     global _manager
     with _lock:
         if _manager is None:
-            _manager = CrisisDataManager()
-            _manager.load()
+            m = CrisisDataManager()
+            if not m.load():
+                raise RuntimeError("CrisisDataManager failed to load")
+            _manager = m
     return _manager
 
 
