@@ -266,12 +266,12 @@ def main():
     print()
 
     # Step 1: Copy existing CLIP embeddings
-    print("[1/3] Copying existing CLIP embeddings...")
+    print("1/3 Copying existing CLIP embeddings...")
     copy_clip_embeddings()
     print()
 
     # Step 2: Generate SigLIP embeddings
-    print("[2/3] Generating SigLIP embeddings...")
+    print("2/3 Generating SigLIP embeddings...")
     siglip_model, siglip_proc = load_siglip_model(device)
 
     siglip_embs, siglip_paths, siglip_corrupt = process_images_siglip(
@@ -284,7 +284,7 @@ def main():
     print()
 
     # Step 3: Generate ResNet50 embeddings
-    print("[3/3] Generating ResNet50 embeddings...")
+    print("3/3 Generating ResNet50 embeddings...")
     resnet_model, resnet_preprocess = load_resnet50_model(device)
 
     resnet_embs, resnet_paths, resnet_corrupt = process_images_resnet50(
@@ -297,15 +297,14 @@ def main():
     print()
 
     # Summary
-    print("Vectorisation Complete")
     print("SigLIP: {} embeddings".format(len(siglip_embs)))
     print("ResNet50: {} embeddings".format(len(resnet_embs)))
 
     if siglip_corrupt:
-        print("  SigLIP corrupt: {}".format(len(siglip_corrupt)))
+        print("SigLIP corrupt: {}".format(len(siglip_corrupt)))
 
     if resnet_corrupt:
-        print("  ResNet50 corrupt: {}".format(len(resnet_corrupt)))
+        print("ResNet50 corrupt: {}".format(len(resnet_corrupt)))
 
 
 if __name__ == "__main__":

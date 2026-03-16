@@ -404,6 +404,13 @@ class CrisisDataManager:
             raise RuntimeError("Heatmap extractor not available")
         return extractor.compute(image_path)
 
+    def get_heatmap_with_stats(self, image_path: str) -> tuple:
+        """Compute and return (JPEG bytes, stats dict) for an image path."""
+        extractor = self._get_heatmap_extractor()
+        if extractor is None:
+            raise RuntimeError("Heatmap extractor not available")
+        return extractor.compute_with_stats(image_path)
+
     def caption_image(
         self,
         image_index: int,
@@ -557,6 +564,11 @@ def get_damage_severity(image_index):
 def get_heatmap_bytes(image_path):
     """Convenience wrapper for attention heatmap generation."""
     return get_manager().get_heatmap_bytes(image_path)
+
+
+def get_heatmap_with_stats(image_path):
+    """Convenience wrapper returning (JPEG bytes, stats dict)."""
+    return get_manager().get_heatmap_with_stats(image_path)
 
 
 if __name__ == "__main__":

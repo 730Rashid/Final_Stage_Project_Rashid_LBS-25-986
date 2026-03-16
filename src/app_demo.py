@@ -45,6 +45,7 @@ from app_backend import (
     caption_image_by_index,
     get_damage_severity,
     get_heatmap_bytes,
+    get_heatmap_with_stats,
     CLASSIFICATION_LABELS,
     LABEL_DISPLAY_NAMES,
     PROJECT_ROOT,
@@ -94,36 +95,21 @@ server = app.server
 
 # Face Detection Setup
 # YuNet is OpenCV's built-in deep learning face detector (~230KB model).
-# It's loaded once and reused across all requests for performance.
-# If YuNet fails to load we then fall back to Haar cascades automatically.
+# It's loaded once at startup and reused across all requests.
+# A threading lock is required because OpenCV's DNN module is not thread-safe.
+# If YuNet fails to load we fall back to Haar cascades automatically.
+import threading
+
+_yunet_lock = threading.Lock()
 _yunet_detector = None
-_yunet_available = None  # None = not yet checked, True/False = result
+_yunet_available = False
 
-
-def _load_yunet():
-    """
-    Load the YuNet face detector once.
-
-    YuNet is a lightweight CNN-based face detector bundled with OpenCV.
-    It's much more accurate than Haar cascades while using minimal memory.
-    Returns the detector instance or None on failure.
-    """
-    global _yunet_detector, _yunet_available
-
-    if _yunet_available is not None:
-        return _yunet_detector
-
-    model_path = str(config.YUNET_MODEL_PATH)
-
-    if not config.YUNET_MODEL_PATH.exists():
-        print("YuNet model not found at {}, falling back to Haar cascades".format(model_path))
-        _yunet_available = False
-        return None
-
+# Load YuNet eagerly at import time (avoids race conditions from lazy loading)
+_yunet_model_path = str(config.YUNET_MODEL_PATH)
+if config.YUNET_MODEL_PATH.exists():
     try:
-        # Create detector with a placeholder input size (updated per image later)
         _yunet_detector = cv2.FaceDetectorYN.create(
-            model_path,
+            _yunet_model_path,
             "",
             (320, 320),
             config.YUNET_CONFIDENCE_THRESHOLD,
@@ -134,10 +120,8 @@ def _load_yunet():
         print("YuNet face detector loaded (deep learning, ~230KB model)")
     except Exception as e:
         print("YuNet unavailable, falling back to Haar cascades: {}".format(e))
-        _yunet_detector = None
-        _yunet_available = False
-
-    return _yunet_detector
+else:
+    print("YuNet model not found at {}, falling back to Haar cascades".format(_yunet_model_path))
 
 
 def _detect_faces_yunet(img):
@@ -147,15 +131,18 @@ def _detect_faces_yunet(img):
     Returns a list of (x, y, w, h) tuples for each detected face,
     matching the format used by the Haar cascade fallback.
     Returns None if YuNet is unavailable (signals fallback to Haar).
+
+    A lock is held during detection because OpenCV's DNN inference
+    is not thread-safe when sharing a single model instance.
     """
-    detector = _load_yunet()
-    if detector is None:
+    if not _yunet_available:
         return None
 
     try:
         h, w = img.shape[:2]
-        detector.setInputSize((w, h))
-        _, detections = detector.detect(img)
+        with _yunet_lock:
+            _yunet_detector.setInputSize((w, h))
+            _, detections = _yunet_detector.detect(img)
     except Exception as e:
         print("YuNet detection failed, using Haar fallback: {}".format(e))
         return None
@@ -311,19 +298,169 @@ def serve_image(p):
     return Response(buffer.tobytes(), mimetype="image/jpeg")
 
 
-@server.route("/heatmap/<path:p>")
-def serve_heatmap(p):
-    """Serve CLIP attention heatmap for an image."""
+@server.route("/heatmap/image/<path:p>")
+def serve_heatmap_image(p):
+    """Serve raw JPEG heatmap bytes (used by the HTML page below)."""
     path = IMAGE_FOLDER / p
     if not path.exists():
         return "Not found", 404
-    
     try:
         img_bytes = get_heatmap_bytes(str(path))
         return Response(img_bytes, mimetype="image/jpeg")
-    
     except Exception as e:
         return "Heatmap error: {}".format(e), 500
+
+
+@server.route("/heatmap/<path:p>")
+def serve_heatmap(p):
+    """Serve CLIP attention heatmap as an HTML page with legend and stats."""
+    path = IMAGE_FOLDER / p
+    if not path.exists():
+        return "Not found", 404
+
+    try:
+        img_bytes, stats = get_heatmap_with_stats(str(path))
+    except Exception as e:
+        return "Heatmap error: {}".format(e), 500
+
+    image_name = path.name
+    img_src = "/heatmap/image/{}".format(p)
+
+    # Describe the concentration level
+    conc = stats["concentration"]
+    if conc >= 0.6:
+        conc_desc = "Highly focused"
+    elif conc >= 0.35:
+        conc_desc = "Moderately focused"
+    else:
+        conc_desc = "Broadly distributed"
+
+    html_page = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Attention Heatmap &mdash; {name}</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=Lora:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  body {{
+    background: #f8f9fa;
+    color: #374151;
+    font-family: 'IBM Plex Sans', -apple-system, sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+    margin: 0;
+    padding: 40px 20px;
+    -webkit-font-smoothing: antialiased;
+  }}
+  .container {{ max-width: 800px; margin: 0 auto; }}
+  a.back {{ color: #2563eb; text-decoration: none; font-size: 0.85rem; font-weight: 500; }}
+  a.back:hover {{ text-decoration: underline; }}
+  h1 {{
+    font-family: 'Lora', serif;
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #1a202c;
+    margin: 16px 0 4px;
+  }}
+  .filename {{ color: #64748b; font-size: 0.85rem; margin-bottom: 24px; }}
+  .card {{
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    box-shadow: 0 1px 3px 0 rgba(0,0,0,0.05);
+    overflow: hidden;
+  }}
+  .card img {{ width: 100%; display: block; }}
+  .stats {{
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    border-top: 1px solid #e2e8f0;
+  }}
+  .stat {{
+    padding: 14px 16px;
+    border-right: 1px solid #e2e8f0;
+  }}
+  .stat:last-child {{ border-right: none; }}
+  .stat-label {{
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }}
+  .stat-val {{
+    font-size: 1rem;
+    font-weight: 500;
+    color: #0f172a;
+    margin-top: 2px;
+  }}
+  .note {{
+    margin-top: 20px;
+    padding: 14px 16px;
+    background: #fff;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    color: #64748b;
+    line-height: 1.6;
+  }}
+  .note strong {{ color: #374151; }}
+  .red {{ color: #dc2626; font-weight: 600; }}
+  .blue {{ color: #2563eb; font-weight: 600; }}
+  @media (max-width: 600px) {{
+    .stats {{ grid-template-columns: repeat(2, 1fr); }}
+    .stat:nth-child(2) {{ border-right: none; }}
+  }}
+</style>
+</head>
+<body>
+<div class="container">
+  <a class="back" href="javascript:history.back()">&larr; Back to dashboard</a>
+  <h1>Attention Heatmap</h1>
+  <p class="filename">{name}</p>
+
+  <div class="card">
+    <img src="{src}" alt="Attention heatmap for {name}">
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-label">Focus Region</div>
+        <div class="stat-val">{focus}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Distribution</div>
+        <div class="stat-val">{conc_desc}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Top 25% Share</div>
+        <div class="stat-val">{top_share}%</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Peak Attention</div>
+        <div class="stat-val">{peak:.0%}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    <strong>Reading this heatmap:</strong>
+    <span class="red">Red/warm</span> regions contributed most to how CLIP
+    understands this image. <span class="blue">Blue/cool</span> regions
+    had less influence on the final embedding. The colour bar at the bottom
+    of the image shows the full scale.
+  </div>
+</div>
+</body>
+</html>""".format(
+        name=image_name,
+        src=img_src,
+        focus=stats["focus_region"].replace("-", " ").title(),
+        conc_desc=conc_desc,
+        top_share=stats["top_quarter_share"],
+        peak=stats["peak_value"],
+    )
+
+    return Response(html_page, mimetype="text/html")
 
 
 # Component Builders
