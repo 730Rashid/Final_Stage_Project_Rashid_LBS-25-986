@@ -117,7 +117,8 @@ if config.YUNET_MODEL_PATH.exists():
             5000
         )
         _yunet_available = True
-        print("YuNet face detector loaded (deep learning, ~230KB model)")
+        print("YuNet face detector loaded")
+    
     except Exception as e:
         print("YuNet unavailable, falling back to Haar cascades: {}".format(e))
 else:
@@ -143,6 +144,7 @@ def _detect_faces_yunet(img):
         with _yunet_lock:
             _yunet_detector.setInputSize((w, h))
             _, detections = _yunet_detector.detect(img)
+    
     except Exception as e:
         print("YuNet detection failed, using Haar fallback: {}".format(e))
         return None
@@ -266,7 +268,6 @@ def serve_image(p):
     if img is None:
         return send_from_directory(str(path.parent), path.name)
 
-    # Detect faces, try YuNet first, fall back to Haar cascades
     try:
         faces = None
         if config.FACE_DETECT_MODEL == "yunet":
@@ -281,7 +282,7 @@ def serve_image(p):
             img = _blur_faces(img, faces)
             
     except Exception:
-        pass  # Face detection failure, serve image unblurred rather than 500
+        pass  
 
     # Encode to JPEG
     _, buffer = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 90])
@@ -293,7 +294,7 @@ def serve_image(p):
             f.write(buffer.tobytes())
             
     except Exception:
-        pass  # Caching is best-effort, don't break serving
+        pass  
 
     return Response(buffer.tobytes(), mimetype="image/jpeg")
 

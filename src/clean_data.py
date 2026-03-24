@@ -138,15 +138,15 @@ def clean_dataset() -> None:
     
     total_images = len(image_files)
 
-    print("  Found {:,} images to process".format(total_images))
+    print("Found {:,} images to process".format(total_images))
     print("")
     
     if total_images == 0:
-        print("ERROR: No images found in the source folder")
+        print("No images found in the source folder")
         return
     
     # Process each image
-    print("Step 2: Validating images...")
+    print("Validating images...")
     
     stats = {
         "valid": 0,
@@ -157,7 +157,7 @@ def clean_dataset() -> None:
     errors_log = []
     
     for src_path in tqdm(image_files, desc="  Checking", unit="img"):
-        # Get relative path to preserve folder structure
+        
         rel_path = src_path.relative_to(RAW_DATA_PATH)
         
         # Extract category from the folder name
@@ -170,7 +170,6 @@ def clean_dataset() -> None:
         is_valid, reason = is_valid_image(src_path)
         
         if is_valid:
-            # Copy to clean folder
             dest_path = CLEAN_DATA_PATH / rel_path
             dest_path.parent.mkdir(parents=True, exist_ok=True)
             
@@ -189,21 +188,21 @@ def clean_dataset() -> None:
             stats["by_category"][category]["skipped"] += 1
             errors_log.append("{}\t{}".format(src_path, reason))
     
-    print("")
+    
     
     # Print the report
-    print("Generating cleaning report...")
+    print("Generating cleaning report")
     
     total_skipped = sum(stats["skipped"].values())
     
     print("")
     print("Summary:")
-    print("Total processed:  {:,}".format(total_images))
-    print("Valid images:     {:,} ({:.1f}%)".format(
+    print("Total processed: {:,}".format(total_images))
+    print("Valid images: {:,} ({:.1f}%)".format(
         stats["valid"], 
         100 * stats["valid"] / total_images
     ))
-    print("  Skipped:          {:,} ({:.1f}%)".format(
+    print("Skipped: {:,} ({:.1f}%)".format(
         total_skipped, 
         100 * total_skipped / total_images
     ))
@@ -215,12 +214,13 @@ def clean_dataset() -> None:
         print("  {}: {:,}".format(reason, count))
     
     print("")
-    print("Images by Category (Top 10):")
+    print("Images by Category Top 10:")
     sorted_cats = sorted(
         stats["by_category"].items(), 
         key=lambda x: x[1]["valid"], 
         reverse=True
     )[:10]
+    
     for cat, counts in sorted_cats:
         total = counts["valid"] + counts["skipped"]
         

@@ -41,20 +41,20 @@ def load_embeddings() -> Tuple[Optional[np.ndarray], Optional[List[str]]]:
     print("Loading embeddings from: {}".format(EMBEDDINGS_PATH))
     
     if not EMBEDDINGS_PATH.exists():
-        print("ERROR: Embeddings file not found")
+        print("Embeddings file not found")
         print("Please run vectorise.py first to generate embeddings")
         return None, None
     
     embeddings = np.load(EMBEDDINGS_PATH)
-    print("Loaded {} embeddings of dimension {}".format(
-        embeddings.shape[0], embeddings.shape[1]
-    ))
+    print("Loaded {} embeddings of dimension {}".format(embeddings.shape[0], embeddings.shape[1]))
     
     # Load filenames if available
     filenames = None
     if FILENAMES_PATH.exists():
+        
         with open(FILENAMES_PATH, "r") as f:
             filenames = json.load(f)
+            
         print("Loaded {} filenames".format(len(filenames)))
     
     return embeddings, filenames
@@ -70,10 +70,10 @@ def run_umap(embeddings: np.ndarray) -> np.ndarray:
     Returns:
         Array of shape (N, 2) containing 2D coordinates.
     """
-    print("Running UMAP reduction...")
-    print("  n_neighbors: {}".format(config.UMAP_N_NEIGHBOURS))
-    print("  min_dist: {}".format(config.UMAP_MIN_DIST))
-    print("  metric: {}".format(config.UMAP_METRIC))
+    print("Running UMAP reduction")
+    print("n_neighbors: {}".format(config.UMAP_N_NEIGHBOURS))
+    print("min_dist: {}".format(config.UMAP_MIN_DIST))
+    print("metric: {}".format(config.UMAP_METRIC))
     
     start_time = datetime.now()
     

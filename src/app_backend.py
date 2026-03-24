@@ -149,10 +149,12 @@ class CrisisDataManager:
             print("Metadata loaded: {} images across {} events".format(
                 len(self.df), len(self.unique_events)
             ))
+            
             return True
             
         except FileNotFoundError:
             print("Could not find {}. Run umap_reduction.py first.".format(DATA_PATH))
+            
             return False
     
     def _load_clip_model(self) -> bool:
@@ -170,10 +172,12 @@ class CrisisDataManager:
             self.clip_processor = CLIPProcessor.from_pretrained(
                 "openai/clip-vit-base-patch32"
             )
+            
             return True
             
         except Exception as e:
             print("Failed to load CLIP model: {}".format(e))
+            
             return False
     
     def _load_embeddings(self) -> bool:
@@ -184,11 +188,15 @@ class CrisisDataManager:
                 print("Error: Expected embeddings shape (N, 512), got {}".format(
                     self.embeddings.shape
                 ))
+            
                 return False
+            
             print("Embeddings loaded: {}".format(self.embeddings.shape))
+            
             return True
         except Exception as e:
             print("Failed to load embeddings: {}".format(e))
+            
             return False
     
     def _precompute_label_embeddings(self):
@@ -222,7 +230,7 @@ class CrisisDataManager:
     def _precompute_severity_embeddings(self):
         """Precompute embeddings for damage severity labels."""
         try:
-            print("Precomputing severity embeddings...")
+            print("Precomputing severity embeddings")
 
             all_features = []
             for label in SEVERITY_LABELS:
@@ -232,9 +240,11 @@ class CrisisDataManager:
                     padding=True,
                     truncation=True
                 ).to(self.device)
+                
                 with torch.no_grad():
                     text_outputs = self.clip_model.text_model(**inputs)
                     features = self.clip_model.text_projection(text_outputs.pooler_output)
+                
                 all_features.append(features.cpu().numpy())
 
             severity_features = np.vstack(all_features)
@@ -312,10 +322,13 @@ class CrisisDataManager:
             local_top_k = min(top_k, len(subset_indices))
             local_top_indices = np.argsort(similarities)[::-1][:local_top_k]
             global_indices = np.array(subset_indices)[local_top_indices]
+        
             return global_indices, similarities[local_top_indices]
+        
         else:
             similarities = cosine_similarity(text_vector, self.embeddings)[0]
             top_indices = np.argsort(similarities)[::-1][:top_k]
+        
             return top_indices, similarities[top_indices]
     
     def visual_search(
@@ -354,6 +367,7 @@ class CrisisDataManager:
         if self.analytics is None:
             from analytics import EmbeddingAnalytics
             self.analytics = EmbeddingAnalytics(self.embeddings, self.df)
+            
         return self.analytics
 
     def get_topology_analytics(self):
@@ -361,6 +375,7 @@ class CrisisDataManager:
         if self.topology is None:
             from topology_analysis import TopologyAnalytics
             self.topology = TopologyAnalytics(self.embeddings, self.df)
+        
         return self.topology
 
     def _get_captioner(self):
@@ -378,6 +393,7 @@ class CrisisDataManager:
             except Exception as e:
                 print("Failed to initialise CLIP Interrogator: {}".format(e))
                 self.captioner = None
+                
         return self.captioner
 
     def _get_heatmap_extractor(self):
@@ -395,6 +411,7 @@ class CrisisDataManager:
             except Exception as e:
                 print("Failed to initialise heatmap extractor: {}".format(e))
                 self.heatmap_extractor = None
+                
         return self.heatmap_extractor
 
     def get_heatmap_bytes(self, image_path: str) -> bytes:
@@ -402,6 +419,7 @@ class CrisisDataManager:
         extractor = self._get_heatmap_extractor()
         if extractor is None:
             raise RuntimeError("Heatmap extractor not available")
+        
         return extractor.compute(image_path)
 
     def get_heatmap_with_stats(self, image_path: str) -> tuple:
@@ -409,6 +427,7 @@ class CrisisDataManager:
         extractor = self._get_heatmap_extractor()
         if extractor is None:
             raise RuntimeError("Heatmap extractor not available")
+        
         return extractor.compute_with_stats(image_path)
 
     def caption_image(
@@ -507,6 +526,7 @@ def get_manager() -> CrisisDataManager:
             if not m.load():
                 raise RuntimeError("CrisisDataManager failed to load")
             _manager = m
+    
     return _manager
 
 

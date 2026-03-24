@@ -39,13 +39,18 @@ def load_model() -> Tuple[CLIPModel, CLIPProcessor, str]:
     """
     print("Step 1: Loading CLIP Model...")
     
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    print("  Inference Device: {}".format(device))
+    if torch.cuda.is_available():
+        device = "cuda"
+    else:
+        device = "cpu"
+    
+    print("Inference Device: {}".format(device))
     
     model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32").to(device)
     processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
     
     print("  Model loaded successfully")
+    
     return model, processor, device
 
 
@@ -68,7 +73,8 @@ def find_images(root_dir: Path) -> List[str]:
         for path in root_dir.rglob("*{}".format(ext)):
             image_paths.append(str(path))
             
-    print("  Found {} images".format(len(image_paths)))
+    print("Found {} images".format(len(image_paths)))
+    
     return image_paths
 
 
@@ -91,7 +97,7 @@ def process_images(
     """
     batch_size = config.VECTORISE_BATCH_SIZE
     print("Step 3: Generating Embeddings...")
-    print("  Batch size: {}".format(batch_size))
+    print("Batch size: {}".format(batch_size))
 
     embeddings = []
     valid_paths = []
@@ -108,6 +114,7 @@ def process_images(
                 img = Image.open(path).convert("RGB")
                 batch_images.append(img)
                 batch_valid_paths.append(path)
+                
             except Exception as e:
                 corrupt_files.append((path, str(e)))
         
@@ -129,6 +136,7 @@ def process_images(
             
         except Exception as e:
             print("  Batch Error: {}".format(e))
+            
             for path in batch_valid_paths:
                 corrupt_files.append((path, str(e)))
     
@@ -137,7 +145,8 @@ def process_images(
     else:
         embeddings = np.array([])
     
-    print("  Generated {} embeddings".format(len(embeddings)))
+    print("Generated {} embeddings".format(len(embeddings)))
+    
     return embeddings, valid_paths, corrupt_files
 
 

@@ -193,10 +193,10 @@ def generate_report(
     print("Clustering Metrics:")
     
     for name, data in metrics.items():
-        print("  {}".format(name.replace("_", " ").title()))
-        print("    Value:          {}".format(data["value"]))
-        print("    Range:          {}".format(data["range"]))
-        print("    Interpretation: {}".format(data["interpretation"]))
+        print("{}".format(name.replace("_", " ").title()))
+        print("Value: {}".format(data["value"]))
+        print("Range: {}".format(data["range"]))
+        print("Interpretation: {}".format(data["interpretation"]))
         print("")
     
     print("Report saved to: {}".format(json_path))

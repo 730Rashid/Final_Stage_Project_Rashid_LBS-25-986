@@ -1,7 +1,7 @@
 """
 Embedding Space Analytics.
 
-Computes quantitative metrics on the CLIP embedding space:
+This file computes quantitative metrics on the CLIP embedding space:
 - Per-event statistics (cohesion, spread)
 - Inter-event similarity matrix
 - Intra-event similarity distributions
@@ -43,8 +43,10 @@ class EmbeddingAnalytics:
 
     def _get_event_embeddings(self, event: str) -> np.ndarray:
         """Get embeddings for a single event."""
+        
         mask = self.df["event"] == event
         indices = self.df.loc[mask, "original_idx"].values
+        
         return self.embeddings[indices]
 
     def per_event_stats(self) -> Dict[str, Dict[str, float]]:
@@ -90,7 +92,10 @@ class EmbeddingAnalytics:
             }
 
         self._cache["per_event_stats"] = stats
+        
+        
         return stats
+
 
     def inter_event_similarity_matrix(self) -> np.ndarray:
         """
@@ -107,6 +112,7 @@ class EmbeddingAnalytics:
             embs = self._get_event_embeddings(event)
             centroid = embs.mean(axis=0)
             # L2-normalise the centroid
+            
             centroid = centroid / np.linalg.norm(centroid)
             centroids.append(centroid)
 
@@ -114,7 +120,12 @@ class EmbeddingAnalytics:
         matrix = cosine_similarity(centroids)
 
         self._cache["inter_event_matrix"] = matrix
+        
+        
+        
         return matrix
+
+
 
     def cross_event_retrieval_matrix(self) -> np.ndarray:
         """
@@ -135,11 +146,13 @@ class EmbeddingAnalytics:
 
         # Precompute all centroids (L2-normalised)
         centroids = []
+        
         for event in self.events:
             embs = self._get_event_embeddings(event)
             c = embs.mean(axis=0)
             c = c / np.linalg.norm(c)
             centroids.append(c)
+            
         centroids = np.array(centroids)  # (num_events, 512)
 
         n_events = len(self.events)
@@ -148,17 +161,21 @@ class EmbeddingAnalytics:
         for i, src_event in enumerate(self.events):
             embs = self._get_event_embeddings(src_event)
             count = len(embs)
+            
             if count > sample_size:
                 rng = np.random.RandomState(config.RANDOM_SEED)
                 idx = rng.choice(count, size=sample_size, replace=False)
                 sampled = embs[idx]
+            
             else:
                 sampled = embs
+            
             # L2-normalised embeddings: dot product == cosine similarity
             sims = sampled @ centroids.T  # (N_sample, num_events)
             matrix[i] = sims.mean(axis=0)
 
         self._cache["cross_event_retrieval"] = matrix
+        
         return matrix
 
     def loo_classification_accuracy(self) -> Dict[str, Any]:
@@ -180,6 +197,7 @@ class EmbeddingAnalytics:
 
         # Precompute all centroids
         centroids = {}
+        
         for event in self.events:
             embs = self._get_event_embeddings(event)
             c = embs.mean(axis=0)
@@ -194,10 +212,12 @@ class EmbeddingAnalytics:
 
             embs = self._get_event_embeddings(held_out)
             count = len(embs)
+        
             if count > sample_size:
                 rng = np.random.RandomState(config.RANDOM_SEED)
                 idx = rng.choice(count, size=sample_size, replace=False)
                 sampled = embs[idx]
+        
             else:
                 sampled = embs
 
@@ -218,6 +238,7 @@ class EmbeddingAnalytics:
             t = type_groups.get(event, "Unknown")
             type_sums[t] = type_sums.get(t, 0.0) + acc
             type_counts[t] = type_counts.get(t, 0) + 1
+        
         type_accuracies = {
             t: type_sums[t] / type_counts[t] for t in type_sums
         }
@@ -230,7 +251,9 @@ class EmbeddingAnalytics:
             "overall_accuracy": overall,
         }
         self._cache["loo_classification"] = result
+        
         return result
+
 
     def disaster_type_grouping_analysis(self) -> Dict[str, Any]:
         """
@@ -285,6 +308,7 @@ class EmbeddingAnalytics:
             "event_types": event_types,
         }
         self._cache["disaster_type_grouping"] = result
+        
         return result
 
     def intra_event_distributions(self) -> Dict[str, List[float]]:
@@ -294,6 +318,7 @@ class EmbeddingAnalytics:
         Returns:
             Dict mapping event name to list of float similarity values.
         """
+        
         if "intra_distributions" in self._cache:
             return self._cache["intra_distributions"]
 
@@ -312,6 +337,7 @@ class EmbeddingAnalytics:
                 rng = np.random.RandomState(config.RANDOM_SEED)
                 idx = rng.choice(count, size=sample_size, replace=False)
                 sampled = embs[idx]
+        
             else:
                 sampled = embs
 
@@ -327,8 +353,11 @@ class EmbeddingAnalytics:
             distributions[event] = [float(s) for s in pairwise_sims]
 
         self._cache["intra_distributions"] = distributions
+        
+        
         return distributions
 
+    
     def global_summary(self) -> Dict[str, Any]:
         """
         Compute global embedding space statistics.

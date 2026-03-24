@@ -96,12 +96,12 @@ def load_data() -> Tuple[Optional[np.ndarray], Optional[List[str]]]:
     print("Loading embeddings...")
     
     if not EMBEDDINGS_PATH.exists():
-        print("ERROR: Embeddings not found at {}".format(EMBEDDINGS_PATH))
+        print("Embeddings not found at {}".format(EMBEDDINGS_PATH))
         print("Run vectorise.py first")
         return None, None
     
     embeddings = np.load(EMBEDDINGS_PATH)
-    print("  Loaded {} embeddings of dimension {}".format(
+    print("Loaded {} embeddings of dimension {}".format(
         embeddings.shape[0], embeddings.shape[1]
     ))
     
@@ -122,10 +122,10 @@ def run_hdbscan(embeddings: np.ndarray) -> np.ndarray:
     Returns:
         Array of cluster labels (shape N). -1 indicates noise.
     """
-    print("Running HDBSCAN clustering...")
-    print("  min_cluster_size: {}".format(config.HDBSCAN_MIN_CLUSTER_SIZE))
-    print("  min_samples: {}".format(config.HDBSCAN_MIN_SAMPLES))
-    print("  metric: {}".format(config.HDBSCAN_METRIC))
+    print("Running HDBSCAN clustering")
+    print("min_cluster_size: {}".format(config.HDBSCAN_MIN_CLUSTER_SIZE))
+    print("min_samples: {}".format(config.HDBSCAN_MIN_SAMPLES))
+    print("metric: {}".format(config.HDBSCAN_METRIC))
     
     clusterer = hdbscan.HDBSCAN(
         min_cluster_size=config.HDBSCAN_MIN_CLUSTER_SIZE,
@@ -142,8 +142,8 @@ def run_hdbscan(embeddings: np.ndarray) -> np.ndarray:
     n_clusters = len(unique_labels) - (1 if -1 in unique_labels else 0)
     n_noise = list(labels).count(-1)
     
-    print("  Found {} clusters".format(n_clusters))
-    print("  Noise points: {} ({:.1f}%)".format(n_noise, 100 * n_noise / len(labels)))
+    print("Found {} clusters".format(n_clusters))
+    print("Noise points: {} ({:.1f}%)".format(n_noise, 100 * n_noise / len(labels)))
     
     return labels
 
@@ -192,6 +192,7 @@ def load_clip_model() -> Tuple[CLIPModel, CLIPProcessor, str]:
     processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
 
     print("  Device: {}".format(device))
+    
     return model, processor, device
 
 
@@ -222,6 +223,7 @@ def encode_text_labels(
 
     text_np = np.vstack(all_features)
     text_np = normalize(text_np, norm='l2', axis=1)
+    
     return text_np
 
 
@@ -292,13 +294,13 @@ def save_results(
         cluster_names: Dict of cluster naming info.
         filenames: List of image filenames.
     """
-    print("Saving results...")
+    print("Saving results")
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     
     # Save cluster labels as numpy array
     labels_path = OUTPUT_DIR / "cluster_labels.npy"
     np.save(labels_path, labels)
-    print("  Saved cluster labels to: {}".format(labels_path))
+    print("Saved cluster labels to: {}".format(labels_path))
     
     # Compute cluster statistics
     label_counts = Counter(labels)
@@ -338,7 +340,7 @@ def save_results(
     metadata_path = OUTPUT_DIR / "cluster_metadata.json"
     with open(metadata_path, "w") as f:
         json.dump(metadata, f, indent=2)
-    print("  Saved cluster metadata to: {}".format(metadata_path))
+    print("Saved cluster metadata to: {}".format(metadata_path))
     
     # Print summary
     print("Cluster Summary:")
@@ -346,7 +348,7 @@ def save_results(
     for cluster_id in sorted(cluster_stats.keys()):
         info = cluster_stats[cluster_id]
         
-        print("  {:3d}: {:30s} ({:,} images, conf: {:.2f})".format(
+        print("{:3d}: {:30s} ({:,} images, conf: {:.2f})".format(
             cluster_id,
             info["name"][:30],
             info["count"],

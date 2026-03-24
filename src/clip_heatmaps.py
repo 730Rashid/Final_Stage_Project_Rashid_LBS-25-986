@@ -73,16 +73,15 @@ class CLIPAttentionRollout:
                 return_dict=True
             )
 
-        # last_hidden_state: (1, 50, 768), token 0 is CLS, tokens 1-49 are patches
-        hidden = vision_outputs.last_hidden_state[0]  # (50, 768)
+        hidden = vision_outputs.last_hidden_state[0]
 
-        cls_vec   = hidden[0:1]     # (1, 768)
-        patch_vec = hidden[1:]      # (49, 768)
+        cls_vec   = hidden[0:1]     
+        patch_vec = hidden[1:]      
 
         # Cosine similarity: each patch vs the CLS token
-        cls_norm   = cls_vec / (cls_vec.norm(dim=-1, keepdim=True)   + 1e-8)
+        cls_norm   = cls_vec / (cls_vec.norm(dim=-1, keepdim=True) + 1e-8)
         patch_norm = patch_vec / (patch_vec.norm(dim=-1, keepdim=True) + 1e-8)
-        sim = (patch_norm @ cls_norm.T).squeeze().cpu().numpy()  # (49,)
+        sim = (patch_norm @ cls_norm.T).squeeze().cpu().numpy()  
 
         # Normalise to [0, 1]
         sim_min, sim_max = float(sim.min()), float(sim.max())
@@ -142,8 +141,7 @@ class CLIPAttentionRollout:
         canvas_bgr[bar_top:bar_bottom, bar_left:bar_right] = gradient_bar
 
         # Draw a thin border around the bar
-        cv2.rectangle(canvas_bgr, (bar_left, bar_top), (bar_right - 1, bar_bottom - 1),
-                      (180, 180, 180), 1)
+        cv2.rectangle(canvas_bgr, (bar_left, bar_top), (bar_right - 1, bar_bottom - 1), (180, 180, 180), 1)
 
         # Labels
         font = cv2.FONT_HERSHEY_SIMPLEX
@@ -229,4 +227,5 @@ class CLIPAttentionRollout:
         """
         if image_path not in self._cache:
             self.compute(image_path)
+            
         return self._cache[image_path]

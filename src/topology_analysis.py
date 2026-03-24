@@ -45,7 +45,7 @@ _TOPO_CACHE_PATH = config.VISUALISATION_DIR / "topology_cache.json"
 # Sample sizes chosen to balance accuracy vs runtime on MX450 with 16 GB RAM
 _PH_SAMPLE_SIZE  = 2000
 _ORC_SAMPLE_SIZE = 500
-_KNN_K           = 10
+_KNN_K = 10
 
 
 def _stratified_sample(
@@ -69,10 +69,10 @@ def _stratified_sample(
     sampled_events  = []
 
     for event in events:
-        mask      = df["event"] == event
+        mask = df["event"] == event
         event_idx = df.loc[mask, "original_idx"].values
-        k         = min(per_event, len(event_idx))
-        chosen    = rng.choice(event_idx, size=k, replace=False)
+        k = min(per_event, len(event_idx))
+        chosen = rng.choice(event_idx, size=k, replace=False)
 
         sampled_indices.extend(chosen.tolist())
         sampled_events.extend([event] * k)
@@ -89,11 +89,11 @@ def _cosine_distance_matrix(embs: np.ndarray) -> np.ndarray:
     L2 normalises embeddings first so the formula cosine_dist = 1 - dot(u, v)
     is exact. Clipped to [0, 2] for numerical safety.
     """
-    norms  = np.linalg.norm(embs, axis=1, keepdims=True)
-    norms  = np.where(norms == 0, 1.0, norms)
+    norms = np.linalg.norm(embs, axis=1, keepdims=True)
+    norms = np.where(norms == 0, 1.0, norms)
     normed = embs / norms
 
-    dot  = normed @ normed.T
+    dot = normed @ normed.T
     dist = np.clip(1.0 - dot, 0.0, 2.0)
 
     return dist.astype(np.float64)
@@ -111,8 +111,8 @@ class TopologyAnalytics:
 
     def __init__(self, embeddings: np.ndarray, df: pd.DataFrame) -> None:
         self.embeddings = embeddings
-        self.df         = df
-        self.events     = sorted(df["event"].unique().tolist())
+        self.df = df
+        self.events = sorted(df["event"].unique().tolist())
         self._cache: Dict[str, Any] = {}
 
         self._load_disk_cache()
@@ -173,20 +173,20 @@ class TopologyAnalytics:
 
         # Vietoris Rips up to dimension 1 (H0 + H1)
         result = ripser.ripser(dist_matrix, distance_matrix=True, maxdim=1)
-        dgms   = result["dgms"]
+        dgms = result["dgms"]
 
         def _extract(dgm: np.ndarray) -> Dict[str, Any]:
             """Extract finite features from one persistence diagram."""
-            finite  = dgm[dgm[:, 1] != np.inf]
-            birth   = finite[:, 0].tolist()
-            death   = finite[:, 1].tolist()
+            finite = dgm[dgm[:, 1] != np.inf]
+            birth = finite[:, 0].tolist()
+            death = finite[:, 1].tolist()
             persist = (finite[:, 1] - finite[:, 0]).tolist()
 
             return {
-                "birth":            birth,
-                "death":            death,
-                "persistence":      persist,
-                "n_features":       len(finite),
+                "birth": birth,
+                "death": death,
+                "persistence": persist,
+                "n_features": len(finite),
                 "max_persistence":  float(max(persist)) if persist else 0.0,
                 "mean_persistence": float(np.mean(persist)) if persist else 0.0,
             }
@@ -242,9 +242,9 @@ class TopologyAnalytics:
         neighbors: Dict[int, List[int]] = {}
 
         for i in range(n):
-            dists_i    = cos_dist[i].copy()
+            dists_i = cos_dist[i].copy()
             dists_i[i] = np.inf
-            nn         = np.argsort(dists_i)[:_KNN_K]
+            nn = np.argsort(dists_i)[:_KNN_K]
             neighbors[i] = nn.tolist()
 
         # Collect undirected edges
@@ -256,7 +256,7 @@ class TopologyAnalytics:
 
         # Compute curvature for every edge via Earth Mover's Distance
         edge_curvatures = []
-        edge_list       = sorted(edge_set)
+        edge_list = sorted(edge_set)
 
         for (u, v) in edge_list:
             nu = neighbors[u]
@@ -280,7 +280,7 @@ class TopologyAnalytics:
             M = cos_dist[np.ix_(nu, nv)]
 
             try:
-                w1    = ot.emd2(a, b, M.copy())
+                w1 = ot.emd2(a, b, M.copy())
                 kappa = 1.0 - w1 / d_uv
 
             except Exception:
@@ -299,32 +299,31 @@ class TopologyAnalytics:
             ev = sample_events[v]
 
             if eu == ev:
-                event_curv_sums[eu]   += edge_curvatures[idx]
+                event_curv_sums[eu] += edge_curvatures[idx]
                 event_curv_counts[eu] += 1
 
         event_mean_curvature: Dict[str, float] = {}
 
         for e in self.events:
             cnt = event_curv_counts[e]
-            event_mean_curvature[e] = (
-                event_curv_sums[e] / cnt if cnt > 0 else 0.0
-            )
+            event_mean_curvature[e] = (event_curv_sums[e] / cnt if cnt > 0 else 0.0)
+            
 
         output: Dict[str, Any] = {
-            "edge_curvatures":      edge_curvatures,
+            "edge_curvatures": edge_curvatures,
             "event_mean_curvature": event_mean_curvature,
-            "global_mean":          float(np.mean(curvatures)),
-            "global_std":           float(np.std(curvatures)),
-            "global_min":           float(np.min(curvatures)),
-            "global_max":           float(np.max(curvatures)),
-            "n_positive":           int(np.sum(curvatures > 0)),
-            "n_negative":           int(np.sum(curvatures < 0)),
-            "n_zero":               int(np.sum(curvatures == 0)),
-            "pct_positive":         float(np.mean(curvatures > 0) * 100),
-            "pct_negative":         float(np.mean(curvatures < 0) * 100),
-            "sample_size":          n,
-            "k_neighbors":          _KNN_K,
-            "n_edges":              len(edge_list),
+            "global_mean": float(np.mean(curvatures)),
+            "global_std": float(np.std(curvatures)),
+            "global_min": float(np.min(curvatures)),
+            "global_max": float(np.max(curvatures)),
+            "n_positive": int(np.sum(curvatures > 0)),
+            "n_negative": int(np.sum(curvatures < 0)),
+            "n_zero": int(np.sum(curvatures == 0)),
+            "pct_positive": float(np.mean(curvatures > 0) * 100),
+            "pct_negative": float(np.mean(curvatures < 0) * 100),
+            "sample_size": n,
+            "k_neighbors": _KNN_K,
+            "n_edges": len(edge_list),
         }
 
         self._cache["ricci"] = output

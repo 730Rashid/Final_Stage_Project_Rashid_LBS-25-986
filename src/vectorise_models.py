@@ -93,7 +93,7 @@ def load_resnet50_model(device: str) -> Tuple[Any, Any]:
         ),
     ])
 
-    print(" ResNet50 loaded successfully")
+    print("ResNet50 loaded successfully")
 
     return feature_extractor, preprocess
 
@@ -230,7 +230,7 @@ def save_model_embeddings(model_key, embeddings, paths):
     with open(OUTPUT_DIR / "{}_filenames.json".format(model_key), "w") as f:
         json.dump(paths, f, indent=2)
 
-    print("  Saved {}_embeddings.npy {}".format(model_key, embeddings.shape))
+    print("Saved {}_embeddings.npy {}".format(model_key, embeddings.shape))
 
 
 def copy_clip_embeddings():
@@ -258,7 +258,11 @@ def main():
         print("Error: Dataset not found at {}".format(DATASET_PATH))
         sys.exit(1)
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    if torch.cuda.is_available():
+        device = "cuda"
+    else:
+        device = "cpu"
+        
     print("Device: {}".format(device))
 
     image_paths = find_images(DATASET_PATH)
