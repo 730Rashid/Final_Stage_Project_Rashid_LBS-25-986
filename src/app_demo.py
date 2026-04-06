@@ -41,6 +41,7 @@ from app_backend import (
     get_topology_analytics,
     semantic_search,
     visual_search,
+    multimodal_search,
     classify_image,
     caption_image_by_index,
     get_damage_severity,
@@ -680,7 +681,37 @@ def explorer_page():
                         dbc.Button("Search", id="search-btn", n_clicks=0, className="btn-primary-action"),
                         dbc.Button("Clear", id="clear-btn", n_clicks=0, color="link", className="text-secondary")
                     ])
-                ], md=5),
+                ], md=3),
+                dbc.Col([
+                    dbc.Label("Image + Text Query", className="small text-secondary fw-bold"),
+                    dcc.Upload(
+                        id="image-upload",
+                        children=html.Div(
+                            id="upload-display",
+                            children=[
+                                html.I(className="bi bi-cloud-arrow-up me-2"),
+                                html.Span("Drop or click to upload a reference image")
+                            ],
+                            style={
+                                "border": "1px dashed #cbd5e1",
+                                "borderRadius": "4px",
+                                "padding": "8px 12px",
+                                "textAlign": "center",
+                                "fontSize": "0.8rem",
+                                "color": "#64748b",
+                                "cursor": "pointer",
+                                "background": "#fff",
+                                "lineHeight": "1.8"
+                            }
+                        ),
+                        accept="image/*",
+                        max_size=10_000_000  # 10 MB
+                    ),
+                    html.Div(
+                        id="upload-status",
+                        className="text-muted small mt-1"
+                    )
+                ], md=2),
                 dbc.Col([
                     dbc.Label("System Status", className="small text-secondary fw-bold"),
                     html.Div(id="search-status", className="text-secondary small pt-2")
@@ -709,7 +740,14 @@ def explorer_page():
                     dcc.Graph(
                         id="umap-graph",
                         style={"height": "75vh"},
-                        config={"displaylogo": False, "modeBarButtonsToRemove": ["lasso2d", "select2d"]}
+                        config={
+                            "displaylogo": False,
+                            "modeBarButtonsToRemove": ["lasso2d", "select2d"],
+                            # Performance: skip transition animations on 17K+ points
+                            "plotGlPixelRatio": 1,
+                            "staticPlot": False,
+                            "scrollZoom": True,
+                        }
                     )
                 ], className="paper-card p-0")
             ], md=8),
@@ -886,6 +924,29 @@ def build_image_card(row, score, score_label="Match", privacy_mode=False):
 
 
 @app.callback(
+    Output("upload-display", "children"),
+    Output("upload-status", "children"),
+    Input("image-upload", "contents"),
+    State("image-upload", "filename"),
+    prevent_initial_call=True
+)
+def show_upload_preview(contents, filename):
+    """Show a small preview and filename when a reference image is uploaded."""
+    if contents is None:
+        return [
+            html.I(className="bi bi-cloud-arrow-up me-2"),
+            html.Span("Drop or click to upload a reference image")
+        ], ""
+
+    preview = html.Img(
+        src=contents,
+        style={"maxHeight": "40px", "borderRadius": "3px", "marginRight": "6px"}
+    )
+    return [preview, html.Span(filename, className="small")], \
+        "Add text in the search bar to refine (e.g. 'but with collapsed power lines')"
+
+
+@app.callback(
     [
         Output("umap-graph", "figure"),
         Output("image-grid", "children"),
@@ -899,9 +960,14 @@ def build_image_card(row, score, score_label="Match", privacy_mode=False):
         Input("cluster-filter", "value"),
         Input("clicked-point-store", "data")
     ],
-    [State("search-input", "value")]
+    [
+        State("search-input", "value"),
+        State("image-upload", "contents"),
+        State("image-upload", "filename")
+    ]
 )
-def update_view(n_clicks, n_submit, selected_event, selected_cluster, clicked_index, query):
+def update_view(n_clicks, n_submit, selected_event, selected_cluster,
+                clicked_index, query, upload_contents, upload_filename):
     """Update the visualisation based on user interaction."""
     # Privacy is always enabled
     privacy_mode = True
@@ -910,15 +976,15 @@ def update_view(n_clicks, n_submit, selected_event, selected_cluster, clicked_in
     status = "Ready"
     gallery_title = "Results"
     
-    # Start with full dataframe
-    working_df = df.copy()
+    # Filter without copying the full 17K-row dataframe each callback
+    working_df = df
     filter_parts = []
-    
+
     # Apply event filter
     if selected_event and selected_event != "all":
         working_df = working_df[working_df["event"] == selected_event]
         filter_parts.append(selected_event)
-    
+
     # Apply cluster filter
     if selected_cluster is not None and selected_cluster != "all" and "cluster_id" in df.columns:
         working_df = working_df[working_df["cluster_id"] == selected_cluster]
@@ -939,25 +1005,26 @@ def update_view(n_clicks, n_submit, selected_event, selected_cluster, clicked_in
     else:
         status = "{:,} images".format(len(df))
     
-    # Ghost layer
+    # Ghost layer — no hover, no text arrays (saves memory for 10K+ points)
     if len(ghosted_df) > 0:
         fig.add_trace(go.Scattergl(
-            x=ghosted_df["x"],
-            y=ghosted_df["y"],
+            x=ghosted_df["x"].values,
+            y=ghosted_df["y"].values,
             mode="markers",
             marker=dict(size=3, color="#d1d5db", opacity=0.3),
             hoverinfo="skip",
             showlegend=False
         ))
-    
-    # Active layer
+
+    # Active layer — hover on closest point only (reduces per-frame work)
     fig.add_trace(go.Scattergl(
-        x=filtered_df["x"],
-        y=filtered_df["y"],
+        x=filtered_df["x"].values,
+        y=filtered_df["y"].values,
         mode="markers",
         marker=dict(size=4, color="#94a3b8", opacity=0.5),
-        text=filtered_df["hover"],
+        text=filtered_df["hover"].values,
         hovertemplate="%{text}<extra></extra>",
+        hoverlabel=dict(namelength=0),
         showlegend=False
     ))
 
@@ -1000,6 +1067,66 @@ def update_view(n_clicks, n_submit, selected_event, selected_cluster, clicked_in
             card = build_image_card(row, row["score"], "Similarity", privacy_mode)
             if card:
                 images.append(card)
+
+    # Multimodal Search (uploaded image, optionally combined with text)
+    elif upload_contents is not None and (n_clicks or n_submit):
+        import base64 as _b64
+
+        # Decode the base64 image data from the upload component
+        _header, _b64_data = upload_contents.split(",", 1)
+        image_bytes = _b64.b64decode(_b64_data)
+
+        text_query = query.strip()[:config.SEARCH_MAX_QUERY_LENGTH] if query else ""
+        # Use 0.5 blend when text is provided, 0.0 for image-only
+        weight = 0.5 if text_query else 0.0
+
+        indices, scores = multimodal_search(
+            image_bytes,
+            text_query=text_query,
+            text_weight=weight,
+            subset_indices=filtered_indices
+        )
+        match_df = df.iloc[indices].copy()
+        match_df["score"] = scores
+
+        strong_matches = match_df[match_df["score"] >= config.SEARCH_MIN_THRESHOLD]
+
+        if len(strong_matches) > 0:
+            fig.add_trace(go.Scattergl(
+                x=strong_matches["x"],
+                y=strong_matches["y"],
+                mode="markers",
+                marker=dict(
+                    size=8, color="#7c3aed", opacity=0.9,
+                    line=dict(width=1, color="white")
+                ),
+                text=strong_matches["hover"],
+                hovertemplate="%{text}<extra></extra>",
+                showlegend=False
+            ))
+
+            label = upload_filename or "uploaded image"
+            if text_query:
+                status = "Found {} matches for '{}' + '{}'.".format(
+                    len(strong_matches), label, text_query)
+                gallery_title = "Image + Text: {}".format(text_query)
+            else:
+                status = "Found {} matches for '{}'.".format(len(strong_matches), label)
+                gallery_title = "Similar to: {}".format(label)
+
+            for _, row in strong_matches.head(10).iterrows():
+                card = build_image_card(row, row["score"], "Match", privacy_mode)
+                if card:
+                    images.append(card)
+        else:
+            status = "No significant matches found for the uploaded image."
+            gallery_title = "No Results"
+            images.append(html.Div([
+                html.P("No images matched with sufficient confidence.",
+                       className="text-secondary"),
+                html.Small("Try adding a text description to refine the search.",
+                           className="text-muted")
+            ], className="text-center py-5"))
 
     # Text Search
     elif query and len(query.strip()) >= config.SEARCH_MIN_QUERY_LENGTH:
@@ -1047,7 +1174,12 @@ def update_view(n_clicks, n_submit, selected_event, selected_cluster, clicked_in
         xaxis=dict(visible=False, showgrid=False, zeroline=False),
         yaxis=dict(visible=False, showgrid=False, zeroline=False),
         dragmode="pan",
-        showlegend=False
+        showlegend=False,
+        # Performance: keep zoom/pan position across callbacks
+        uirevision="constant",
+        # Performance: only trigger hover within 20px (avoids scanning all 17K points)
+        hoverdistance=20,
+        hovermode="closest",
     )
     
     final_grid = []

@@ -20,6 +20,7 @@ import threading
 import pandas as pd
 from pathlib import Path
 from typing import List, Tuple, Optional
+from PIL import Image
 from sklearn.metrics.pairwise import cosine_similarity
 
 from utils.event_utils import EVENT_MAPPINGS, parse_event
@@ -362,6 +363,76 @@ class CrisisDataManager:
             top_indices = np.argsort(similarities)[::-1][:top_k]
             return top_indices, similarities[top_indices]
     
+    def multimodal_search(
+        self,
+        image_bytes: bytes,
+        text_query: str = "",
+        text_weight: float = 0.5,
+        subset_indices: Optional[List[int]] = None,
+        top_k: int = 50
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Search using an uploaded image, optionally refined by a text query.
+
+        The image is encoded through CLIP's vision encoder to get an image
+        vector.  If a text query is also provided, the text is encoded and
+        both vectors are blended using a weighted average before searching.
+        This lets users say things like "images like this but with
+        collapsed power lines".
+
+        Args:
+            image_bytes: Raw bytes of the uploaded image (JPEG/PNG).
+            text_query: Optional natural-language refinement.
+            text_weight: How much the text should influence the search
+                         (0 = image only, 1 = text only, default 0.5).
+            subset_indices: Optional list of indices to search within.
+            top_k: Number of results to return.
+
+        Returns:
+            Tuple of (indices, similarity_scores).
+        """
+        import io as _io
+
+        # Encode the uploaded image through CLIP
+        img_pil = Image.open(_io.BytesIO(image_bytes)).convert("RGB")
+        inputs = self.clip_processor(
+            images=img_pil, return_tensors="pt"
+        ).to(self.device)
+
+        with torch.no_grad():
+            image_features = self.clip_model.get_image_features(**inputs)
+        image_features = image_features / image_features.norm(p=2, dim=-1, keepdim=True)
+        query_vector = image_features.cpu().numpy()
+
+        # If there is also a text query, blend the two vectors
+        if text_query and text_query.strip():
+            text_inputs = self.clip_processor(
+                text=[text_query.strip()], return_tensors="pt", padding=True
+            ).to(self.device)
+
+            with torch.no_grad():
+                text_features = self.clip_model.get_text_features(**text_inputs)
+            text_features = text_features / text_features.norm(p=2, dim=-1, keepdim=True)
+            text_vector = text_features.cpu().numpy()
+
+            # Weighted blend and re-normalise
+            query_vector = (1.0 - text_weight) * query_vector + text_weight * text_vector
+            norm = np.linalg.norm(query_vector, axis=1, keepdims=True)
+            query_vector = query_vector / (norm + 1e-8)
+
+        # Cosine similarity search (same logic as semantic_search)
+        if subset_indices is not None and len(subset_indices) > 0:
+            subset_embeddings = self.embeddings[subset_indices]
+            similarities = cosine_similarity(query_vector, subset_embeddings)[0]
+            local_top_k = min(top_k, len(subset_indices))
+            local_top_indices = np.argsort(similarities)[::-1][:local_top_k]
+            global_indices = np.array(subset_indices)[local_top_indices]
+            return global_indices, similarities[local_top_indices]
+        else:
+            similarities = cosine_similarity(query_vector, self.embeddings)[0]
+            top_indices = np.argsort(similarities)[::-1][:top_k]
+            return top_indices, similarities[top_indices]
+
     def get_analytics(self):
         """Get or create the EmbeddingAnalytics instance (lazy-loaded)."""
         if self.analytics is None:
@@ -579,6 +650,14 @@ def caption_image_by_index(image_index, style="natural"):
 def get_damage_severity(image_index):
     """Convenience wrapper for damage severity scoring."""
     return get_manager().score_damage_severity(image_index)
+
+
+def multimodal_search(image_bytes, text_query="", text_weight=0.5,
+                      subset_indices=None, top_k=50):
+    """Convenience wrapper for multimodal (image + text) search."""
+    return get_manager().multimodal_search(
+        image_bytes, text_query, text_weight, subset_indices, top_k
+    )
 
 
 def get_heatmap_bytes(image_path):

@@ -57,6 +57,7 @@ The Dash application (`app_demo.py`) provides an interactive visualisation where
 - **Explore the embedding space:** Each point on the scatter plot represents an image. Points that are close together are semantically similar.
 - **Filter by event:** Isolate images from a specific disaster to see its "semantic footprint" across the embedding space.
 - **Semantic search:** Type natural language queries like "flooded street" or "collapsed building" and the system retrieves matching images in real-time.
+- **Multimodal search (Image + Text):** Upload a reference image and optionally add a text refinement (e.g. upload a flooded street photo and type "but with collapsed power lines"). The system encodes the image through CLIP's vision encoder, blends it with the text query embedding using a weighted average, and searches the dataset for the best matches. This enables composite queries that go beyond what either modality can express alone.
 - **Visual query:** Click any point to find visually similar images using nearest-neighbour search in the embedding space.
 - **Zero-shot classification:** Each image card displays classification badges (e.g. Flood, Fire, Debris, Rescue) with confidence scores, computed using CLIP text-image cosine similarity against 10 disaster-related labels.
 - **Damage severity scoring:** A colour-coded severity badge (Critical, Severe, Moderate, Minimal) on each image card, computed using a two-anchor contrast approach comparing each image to "catastrophic damage" vs "undamaged" text embeddings with a sigmoid-scaled score.
@@ -166,6 +167,20 @@ The negative silhouette score is expected and meaningful: disaster imagery is in
 
 ---
 
+## Browser Rendering Performance
+
+Visualising 17,463 points interactively in a browser requires careful optimisation. The following techniques are applied to keep the interface responsive:
+
+- **WebGL rendering:** All scatter plots on the main UMAP view use Plotly's `Scattergl` trace type, which renders via WebGL rather than SVG. This offloads point drawing to the GPU and handles 17K+ points smoothly.
+- **Hover distance limiting:** `hoverdistance` is set to 20px so the browser only searches nearby points on mousemove rather than scanning all 17K points per frame.
+- **UI revision persistence:** `uirevision="constant"` preserves the user's zoom and pan state across callback updates, avoiding expensive full-figure re-renders when filters or searches change.
+- **Reduced pixel ratio:** `plotGlPixelRatio` is set to 1 to halve the number of pixels the GPU must render on high-DPI displays, with no visible quality loss on scatter plots.
+- **Scroll zoom:** Enabled natively so users can zoom without switching mode bar tools, reducing interaction friction.
+- **Zero-copy filtering:** The main callback filters the dataframe using pandas boolean indexing (views) rather than copying the full 17K-row dataframe on every interaction.
+- **NumPy array pass-through:** Trace data is passed as `.values` (NumPy arrays) rather than pandas Series, avoiding repeated index alignment overhead inside Plotly.
+
+---
+
 ## Technology Stack
 
 | Component | Technology |
@@ -220,6 +235,8 @@ Final_Stage_Project_Rashid_LBS-25-986/
 │   ├── comparison/            # Multi-model embeddings and results
 │   ├── models/                # YuNet face detection model (.onnx)
 │   └── cache/                 # Blurred image cache
+├── tests/
+│   └── test_unit_report.py    # Unit tests (UT-01 to UT-05 from Table 5)
 └── reports/
     └── metrics/               # Evaluation results
 ```
