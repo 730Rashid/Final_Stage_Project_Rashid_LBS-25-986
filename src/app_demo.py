@@ -850,12 +850,17 @@ def render_page(pathname):
 
 @app.callback(
     Output("clicked-point-store", "data"),
-    [Input("umap-graph", "clickData"), Input("clear-btn", "n_clicks")],
+    [
+        Input("umap-graph", "clickData"),
+        Input("clear-btn", "n_clicks"),
+        Input("search-btn", "n_clicks"),
+        Input("search-input", "n_submit"),
+    ],
     prevent_initial_call=True
 )
-def handle_click(click_data, clear_clicks):
+def handle_click(click_data, clear_clicks, search_clicks, search_submits):
     triggered_id = ctx.triggered_id
-    if triggered_id == "clear-btn":
+    if triggered_id in ("clear-btn", "search-btn", "search-input"):
         return None
     if click_data and "points" in click_data:
         point = click_data["points"][0]
@@ -969,6 +974,11 @@ def show_upload_preview(contents, filename):
 def update_view(n_clicks, n_submit, selected_event, selected_cluster,
                 clicked_index, query, upload_contents, upload_filename):
     """Update the visualisation based on user interaction."""
+    # If the user just pressed Search / Enter, ignore any stale clicked point
+    # so the text query takes priority over an old visual search.
+    if ctx.triggered_id in ("search-btn", "search-input"):
+        clicked_index = None
+
     # Privacy is always enabled
     privacy_mode = True
     fig = go.Figure()
@@ -1194,17 +1204,27 @@ def update_view(n_clicks, n_submit, selected_event, selected_cluster,
     if not images and not query and clicked_index is None:
         gallery_title = "Sample Images"
         status = "Click a point or search to explore. Showing samples from each event."
-        
-        # Get one sample from each event category
-        for event in UNIQUE_EVENTS:
-            event_images = filtered_df[filtered_df["event"] == event]
-            
-            if len(event_images) > 0:
-                sample_row = event_images.sample(1).iloc[0]
-                card = build_image_card(sample_row, 1.0, "Sample", privacy_mode)
-                
-                if card:
-                    images.append(card)
+
+        # If an event filter is active, show multiple samples from that event.
+        # Otherwise show one representative sample per event category.
+        if selected_event and selected_event != "all":
+            n_samples = min(10, len(filtered_df))
+            if n_samples > 0:
+                sample_rows = filtered_df.sample(n_samples)
+                for _, sample_row in sample_rows.iterrows():
+                    card = build_image_card(sample_row, 1.0, "Sample", privacy_mode)
+                    if card:
+                        images.append(card)
+        else:
+            for event in UNIQUE_EVENTS:
+                event_images = filtered_df[filtered_df["event"] == event]
+
+                if len(event_images) > 0:
+                    sample_row = event_images.sample(1).iloc[0]
+                    card = build_image_card(sample_row, 1.0, "Sample", privacy_mode)
+
+                    if card:
+                        images.append(card)
         
         final_grid = [dbc.Col(img, width=12) for img in images]
         image_grid = dbc.Row(final_grid, className="g-3")

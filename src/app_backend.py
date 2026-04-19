@@ -161,10 +161,17 @@ class CrisisDataManager:
     def _load_clip_model(self) -> bool:
         """Load CLIP model for encoding."""
         try:
+            import os
             from transformers import CLIPProcessor, CLIPModel
-            
+
             print("Loading CLIP Model...")
-            self.device = "cuda" if torch.cuda.is_available() else "cpu"
+            # FORCE_CPU=1 lets the user bypass CUDA when the GPU is too small
+            # (e.g. the 2GB GPU on this machine) or memory-fragmented
+            force_cpu = os.environ.get("FORCE_CPU", "").lower() in ("1", "true", "yes")
+            if force_cpu:
+                self.device = "cpu"
+            else:
+                self.device = "cuda" if torch.cuda.is_available() else "cpu"
             print("Inference Device: {}".format(self.device))
             
             self.clip_model = CLIPModel.from_pretrained(
@@ -252,11 +259,14 @@ class CrisisDataManager:
             norms = np.linalg.norm(severity_features, axis=1, keepdims=True)
             self.severity_embeddings = severity_features / norms
 
-            print("Severity embeddings ready")
+            print("Severity embeddings are reafy")
 
         except Exception as e:
             print("Could not precompute severity embeddings: {}".format(e))
+            
             self.severity_embeddings = None
+
+
 
     def score_damage_severity(self, image_index: int) -> dict:
         """Score damage severity for an image using zero-shot CLIP.
@@ -270,8 +280,10 @@ class CrisisDataManager:
         image_vector = self.embeddings[image_index].reshape(1, -1)
         sims = cosine_similarity(image_vector, self.severity_embeddings)[0]
 
-        # contrast: how much more the image resembles "destroyed" vs "undamaged"
+        # contrast that shows much more the image resembles "destroyed" vs "undamaged"
         # sigmoid with temperature 20 spreads a ±0.05 contrast range across [0.27, 0.73]
+        
+        
         contrast = float(sims[0] - sims[1])
         score = float(1.0 / (1.0 + np.exp(-20.0 * contrast)))
 
@@ -279,7 +291,12 @@ class CrisisDataManager:
             if score >= threshold:
                 return {"score": score, "category": name, "color": color}
 
+
+
         return {"score": score, "category": "Minimal", "color": "#16a34a"}
+
+
+
 
     def semantic_search(
         self,
@@ -310,6 +327,7 @@ class CrisisDataManager:
         
         if hasattr(text_features, "pooler_output"):
             text_features = text_features.pooler_output
+            
         elif hasattr(text_features, "last_hidden_state"):
             text_features = text_features.last_hidden_state[:, 0, :]
         
@@ -319,10 +337,13 @@ class CrisisDataManager:
         # Search
         if subset_indices is not None and len(subset_indices) > 0:
             subset_embeddings = self.embeddings[subset_indices]
+            
             similarities = cosine_similarity(text_vector, subset_embeddings)[0]
             local_top_k = min(top_k, len(subset_indices))
             local_top_indices = np.argsort(similarities)[::-1][:local_top_k]
+            
             global_indices = np.array(subset_indices)[local_top_indices]
+            
         
             return global_indices, similarities[local_top_indices]
         
@@ -331,6 +352,9 @@ class CrisisDataManager:
             top_indices = np.argsort(similarities)[::-1][:top_k]
         
             return top_indices, similarities[top_indices]
+    
+    
+    
     
     def visual_search(
         self,
