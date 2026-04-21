@@ -5,9 +5,6 @@ This script discovers semantic clusters in the CLIP embedding space without
 relying on ground-truth labels. Each discovered cluster is automatically
 named using CLIP text similarity to find the best description.
 
-Author: Rashid
-Supervisor: XinHui Ma
-Project: Visualising Natural Disaster Image Embeddings
 """
 
 import sys
@@ -93,20 +90,23 @@ def load_data() -> Tuple[Optional[np.ndarray], Optional[List[str]]]:
     Returns:
         Tuple of (embeddings array, filenames list) or (None, None) if not found.
     """
-    print("Loading embeddings...")
+    
+    print("Loading the embeddings")
     
     if not EMBEDDINGS_PATH.exists():
         print("Embeddings not found at {}".format(EMBEDDINGS_PATH))
-        print("Run vectorise.py first")
+        
         return None, None
     
+    
     embeddings = np.load(EMBEDDINGS_PATH)
-    print("Loaded {} embeddings of dimension {}".format(
-        embeddings.shape[0], embeddings.shape[1]
-    ))
+    
+    print("Loaded {} embeddings of dimension {}".format(embeddings.shape[0], embeddings.shape[1]))
     
     filenames = None
+    
     if FILENAMES_PATH.exists():
+        
         with open(FILENAMES_PATH, "r") as f:
             filenames = json.load(f)
     
@@ -122,7 +122,9 @@ def run_hdbscan(embeddings: np.ndarray) -> np.ndarray:
     Returns:
         Array of cluster labels (shape N). -1 indicates noise.
     """
+    
     print("Running HDBSCAN clustering")
+    
     print("min_cluster_size: {}".format(config.HDBSCAN_MIN_CLUSTER_SIZE))
     print("min_samples: {}".format(config.HDBSCAN_MIN_SAMPLES))
     print("metric: {}".format(config.HDBSCAN_METRIC))
@@ -132,12 +134,13 @@ def run_hdbscan(embeddings: np.ndarray) -> np.ndarray:
         min_samples=config.HDBSCAN_MIN_SAMPLES,
         metric=config.HDBSCAN_METRIC,
         cluster_selection_method=config.HDBSCAN_CLUSTER_SELECTION_METHOD,
-        core_dist_n_jobs=-1  # Use all CPU cores
+        core_dist_n_jobs=-1  # We should use all CPU cores
     )
     
     labels = clusterer.fit_predict(embeddings)
     
     # Statistics
+    
     unique_labels = set(labels)
     n_clusters = len(unique_labels) - (1 if -1 in unique_labels else 0)
     n_noise = list(labels).count(-1)
@@ -161,18 +164,20 @@ def compute_cluster_centroids(
     Returns:
         Dict mapping cluster ID to centroid embedding.
     """
+    
     centroids = {}
     unique_labels = set(labels)
     
     for label in unique_labels:
         if label == -1:
-            continue  # Skip noise
+            continue  # Skip the noise
         
         mask = labels == label
         cluster_embeddings = embeddings[mask]
         centroid = cluster_embeddings.mean(axis=0)
         
         # L2 normalise for cosine similarity
+        
         centroid = centroid / np.linalg.norm(centroid)
         centroids[label] = centroid
     
@@ -185,13 +190,19 @@ def load_clip_model() -> Tuple[CLIPModel, CLIPProcessor, str]:
     Returns:
         Tuple of (model, processor, device).
     """
-    print("Loading CLIP model for cluster naming...")
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    print("Loading CLIP model for cluster naming")
+    
+    if torch.cuda.is_available():
+        device = "cuda"
+        
+    else:
+        device = "cpu"
 
     model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32").to(device)
     processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
 
-    print("  Device: {}".format(device))
+    print("Device: {}".format(device))
+    
     
     return model, processor, device
 
@@ -214,11 +225,14 @@ def encode_text_labels(
         Array of shape (len(labels), 512) with text embeddings.
     """
     all_features = []
+    
     for label in labels:
         inputs = processor(text=[label], return_tensors="pt", padding=True, truncation=True).to(device)
+        
         with torch.no_grad():
             text_outputs = model.text_model(**inputs)
             text_features = model.text_projection(text_outputs.pooler_output)
+            
         all_features.append(text_features.cpu().numpy())
 
     text_np = np.vstack(all_features)
@@ -233,7 +247,9 @@ def name_clusters(
     model: CLIPModel,
     processor: CLIPProcessor,
     device: str
+    
 ) -> Dict[int, Dict[str, Any]]:
+    
     """Automatically name each cluster using CLIP similarity.
     
     Args:
@@ -246,7 +262,7 @@ def name_clusters(
     Returns:
         Dict mapping cluster ID to {name, confidence, alternatives}.
     """
-    print("Naming clusters using CLIP...")
+    print("Naming clusters using CLIP")
     
     # Encode all candidate labels
     text_embeddings = encode_text_labels(candidate_labels, model, processor, device)
@@ -254,10 +270,13 @@ def name_clusters(
     cluster_names = {}
     
     for cluster_id, centroid in centroids.items():
+        
         # Compute cosine similarity between centroid and all text labels
+        
         similarities = np.dot(text_embeddings, centroid)
         
-        # Get top 3 matches
+        # We need to get top 3 matches here
+        
         top_indices = np.argsort(similarities)[::-1][:3]
         
         best_idx = top_indices[0]
@@ -275,9 +294,8 @@ def name_clusters(
             "alternatives": alternatives
         }
         
-        print("  Cluster {}: '{}' (conf: {:.2f})".format(
-            cluster_id, best_name, confidence
-        ))
+        print("Cluster {}: '{}' (conf: {:.2f})".format(cluster_id, best_name, confidence))
+    
     
     return cluster_names
 
@@ -295,11 +313,13 @@ def save_results(
         filenames: List of image filenames.
     """
     print("Saving results")
+    
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     
     # Save cluster labels as numpy array
     labels_path = OUTPUT_DIR / "cluster_labels.npy"
     np.save(labels_path, labels)
+    
     print("Saved cluster labels to: {}".format(labels_path))
     
     # Compute cluster statistics
@@ -328,18 +348,22 @@ def save_results(
         "total_images": len(labels),
         "n_clusters": len([k for k in label_counts.keys() if k != -1]),
         "n_noise": int(label_counts.get(-1, 0)),
+        
         "settings": {
             "min_cluster_size": config.HDBSCAN_MIN_CLUSTER_SIZE,
             "min_samples": config.HDBSCAN_MIN_SAMPLES,
             "metric": config.HDBSCAN_METRIC,
             "selection_method": config.HDBSCAN_CLUSTER_SELECTION_METHOD
         },
+        
         "clusters": cluster_stats
     }
     
     metadata_path = OUTPUT_DIR / "cluster_metadata.json"
+    
     with open(metadata_path, "w") as f:
         json.dump(metadata, f, indent=2)
+        
     print("Saved cluster metadata to: {}".format(metadata_path))
     
     # Print summary
@@ -358,6 +382,7 @@ def save_results(
 
 def main() -> None:
     """Main entry point for cluster discovery."""
+    
     print("HDBSCAN Cluster Discovery Pipeline")
     print("Timestamp: {}".format(datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     print("")
@@ -374,16 +399,18 @@ def main() -> None:
     centroids = compute_cluster_centroids(embeddings, labels)
     
     if len(centroids) == 0:
-        print("ERROR: No clusters found. Try lowering min_cluster_size in config.")
+        print("ERROR: No clusters found.")
+        
         sys.exit(1)
     
     # Load CLIP and name clusters
+    
     model, processor, device = load_clip_model()
-    cluster_names = name_clusters(
-        centroids, CANDIDATE_LABELS, model, processor, device
-    )
+    
+    cluster_names = name_clusters(centroids, CANDIDATE_LABELS, model, processor, device)
     
     # Save results
+    
     save_results(labels, cluster_names, filenames)
     
     print("")

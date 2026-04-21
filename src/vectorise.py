@@ -41,6 +41,7 @@ def load_model() -> Tuple[CLIPModel, CLIPProcessor, str]:
     
     if torch.cuda.is_available():
         device = "cuda"
+        
     else:
         device = "cpu"
     
@@ -49,7 +50,7 @@ def load_model() -> Tuple[CLIPModel, CLIPProcessor, str]:
     model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32").to(device)
     processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
     
-    print("  Model loaded successfully")
+    print("Model loaded successfully")
     
     return model, processor, device
 
@@ -63,9 +64,11 @@ def find_images(root_dir: Path) -> List[str]:
     Returns:
         List of image file paths.
     """
-    print("Step 2: Scanning for Images...")
+    
+    print("Scanning for Images...")
     
     image_paths = []
+    
     extensions = set(config.IMAGE_EXTENSIONS)
 
     # Use pathlib rglob for cleaner iteration
@@ -83,6 +86,7 @@ def process_images(
     processor: CLIPProcessor, 
     device: str, 
     image_paths: List[str]
+    
 ) -> Tuple[np.ndarray, List[str], List[Tuple[str, str]]]:
     """Generate embeddings for all images.
     
@@ -95,8 +99,10 @@ def process_images(
     Returns:
         Tuple of (embeddings array, valid paths, corrupt files list).
     """
+    
     batch_size = config.VECTORISE_BATCH_SIZE
-    print("Step 3: Generating Embeddings...")
+    
+    print("Generating Embeddings...")
     print("Batch size: {}".format(batch_size))
 
     embeddings = []
@@ -108,8 +114,9 @@ def process_images(
         batch_images = []
         batch_valid_paths = []
         
-        # 1. Load Images
+        # Load Images
         for path in batch_paths:
+            
             try:
                 img = Image.open(path).convert("RGB")
                 batch_images.append(img)
@@ -121,7 +128,7 @@ def process_images(
         if not batch_images:
             continue
             
-        # 2. Process via CLIP
+        # Process via CLIP
         try:
             inputs = processor(images=batch_images, return_tensors="pt", padding=True).to(device)
             
@@ -129,6 +136,7 @@ def process_images(
                 outputs = model.get_image_features(**inputs)
             
             # L2 normalise for cosine similarity
+            
             outputs = outputs / outputs.norm(p=2, dim=-1, keepdim=True)
             
             embeddings.append(outputs.cpu().numpy())
@@ -142,6 +150,7 @@ def process_images(
     
     if embeddings:
         embeddings = np.vstack(embeddings)
+        
     else:
         embeddings = np.array([])
     
@@ -154,6 +163,7 @@ def save_results(
     embeddings: np.ndarray, 
     paths: List[str], 
     corrupt_files: List[Tuple[str, str]]
+    
 ) -> None:
     """Save embeddings and metadata.
     
@@ -162,33 +172,41 @@ def save_results(
         paths: List of valid image paths.
         corrupt_files: List of (path, error) tuples for failed images.
     """
-    print("Step 4: Saving Results...")
+    
+    print("Saving Results")
     
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     
     np.save(OUTPUT_DIR / "embeddings.npy", embeddings)
-    print("  Saved embeddings.npy ({})".format(embeddings.shape))
+    print("Saved embeddings.npy ({})".format(embeddings.shape))
+    
     
     with open(OUTPUT_DIR / "filenames.json", "w") as f:
         json.dump(paths, f, indent=2)
-    print("  Saved filenames.json")
+        
+    print("Saved filenames.json")
 
 
 def main() -> None:
     """Main entry point for the vectorisation pipeline."""
+    
     print("Embedding Generator using Transformers")
     
     if not DATASET_PATH.exists():
         print("Error: Dataset not found at {}".format(DATASET_PATH))
+        
         sys.exit(1)
+        
     
     model, processor, device = load_model()
     image_paths = find_images(DATASET_PATH)
     
     embeddings, valid_paths, corrupt_files = process_images(model, processor, device, image_paths)
+    
+    
     save_results(embeddings, valid_paths, corrupt_files)
     
-    print("\nPipeline complete.")
+    print("\nPipeline completed")
 
 
 if __name__ == "__main__":

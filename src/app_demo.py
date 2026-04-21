@@ -67,13 +67,18 @@ CLUSTER_METADATA_PATH = PROJECT_ROOT / "data" / "visualisation" / "cluster_metad
 cluster_labels = None
 cluster_metadata = None
 
+
 if CLUSTER_LABELS_PATH.exists() and CLUSTER_METADATA_PATH.exists():
     try:
         cluster_labels = np.load(CLUSTER_LABELS_PATH)
+        
         with open(CLUSTER_METADATA_PATH, "r") as f:
             cluster_metadata = json.load(f)
+            
+            
         df["cluster_id"] = cluster_labels
         print("Loaded cluster data: {} clusters".format(cluster_metadata["n_clusters"]))
+        
         
     except Exception as e:
         print("Warning: Could not load cluster data: {}".format(e))
@@ -117,11 +122,14 @@ if config.YUNET_MODEL_PATH.exists():
             config.YUNET_NMS_THRESHOLD,
             5000
         )
+        
         _yunet_available = True
+        
         print("YuNet face detector loaded")
     
     except Exception as e:
         print("YuNet unavailable, falling back to Haar cascades: {}".format(e))
+        
 else:
     print("YuNet model not found at {}, falling back to Haar cascades".format(_yunet_model_path))
 

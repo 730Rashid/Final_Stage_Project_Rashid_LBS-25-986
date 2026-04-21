@@ -22,6 +22,8 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
+
+
 from config.settings import config
 
 
@@ -30,24 +32,31 @@ class EmbeddingAnalytics:
 
     def __init__(self, embeddings: np.ndarray, df: pd.DataFrame) -> None:
         """
-        Initialise the analytics engine.
+        Start the analytics engine.
         
         Args:
             embeddings: np.ndarray of shape (N, 512), L2-normalised CLIP embeddings.
             df: pd.DataFrame with columns including 'event' and 'original_idx'.
         """
+        
         self.embeddings = embeddings
         self.df = df
         self.events = sorted(df["event"].unique())
         self._cache: Dict[str, Any] = {}
+        
+        
 
     def _get_event_embeddings(self, event: str) -> np.ndarray:
         """Get embeddings for a single event."""
         
+        
         mask = self.df["event"] == event
         indices = self.df.loc[mask, "original_idx"].values
         
+        
         return self.embeddings[indices]
+    
+    
 
     def per_event_stats(self) -> Dict[str, Dict[str, float]]:
         """
@@ -58,6 +67,7 @@ class EmbeddingAnalytics:
             Cohesion = mean pairwise cosine similarity (sampled).
             Spread = std of pairwise cosine similarities.
         """
+        
         if "per_event_stats" in self._cache:
             return self._cache["per_event_stats"]
 
@@ -73,17 +83,22 @@ class EmbeddingAnalytics:
                 continue
 
             # Sample if the event has too many images for pairwise computation
+            
             if count > sample_size:
                 rng = np.random.RandomState(config.RANDOM_SEED)
                 idx = rng.choice(count, size=sample_size, replace=False)
                 sampled = embs[idx]
+                
             else:
                 sampled = embs
 
             sim_matrix = cosine_similarity(sampled)
+            
+            
             # Extract upper triangle (excluding diagonal)
             triu_indices = np.triu_indices(len(sampled), k=1)
             pairwise_sims = sim_matrix[triu_indices]
+            
 
             stats[event] = {
                 "count": count,
@@ -95,6 +110,7 @@ class EmbeddingAnalytics:
         
         
         return stats
+    
 
 
     def inter_event_similarity_matrix(self) -> np.ndarray:
@@ -104,10 +120,14 @@ class EmbeddingAnalytics:
         Returns:
             np.ndarray of shape (num_events, num_events) with cosine similarities.
         """
+        
+        
         if "inter_event_matrix" in self._cache:
             return self._cache["inter_event_matrix"]
 
         centroids = []
+        
+        
         for event in self.events:
             embs = self._get_event_embeddings(event)
             centroid = embs.mean(axis=0)
@@ -139,6 +159,7 @@ class EmbeddingAnalytics:
             np.ndarray of shape (num_events, num_events).
             matrix[i, j] = mean_sim(source_event_i_images, centroid_j)
         """
+        
         if "cross_event_retrieval" in self._cache:
             return self._cache["cross_event_retrieval"]
 
@@ -154,6 +175,7 @@ class EmbeddingAnalytics:
             centroids.append(c)
             
         centroids = np.array(centroids)  # (num_events, 512)
+        
 
         n_events = len(self.events)
         matrix = np.zeros((n_events, n_events), dtype=np.float32)
@@ -170,13 +192,17 @@ class EmbeddingAnalytics:
             else:
                 sampled = embs
             
-            # L2-normalised embeddings: dot product == cosine similarity
-            sims = sampled @ centroids.T  # (N_sample, num_events)
+            # L2-normalised embeddings dot product == cosine similarity
+            
+            sims = sampled @ centroids.T 
             matrix[i] = sims.mean(axis=0)
 
         self._cache["cross_event_retrieval"] = matrix
         
+        
         return matrix
+    
+    
 
     def loo_classification_accuracy(self) -> Dict[str, Any]:
         """
@@ -189,6 +215,7 @@ class EmbeddingAnalytics:
         Returns:
             Dict with event_accuracies, type_accuracies, overall_accuracy.
         """
+        
         if "loo_classification" in self._cache:
             return self._cache["loo_classification"]
 
@@ -205,6 +232,7 @@ class EmbeddingAnalytics:
             centroids[event] = c
 
         event_accuracies = {}
+
 
         for held_out in self.events:
             remaining = [e for e in self.events if e != held_out]
@@ -225,23 +253,23 @@ class EmbeddingAnalytics:
             nearest_idx = np.argmax(sims, axis=1)
 
             held_out_type = type_groups.get(held_out, "Unknown")
-            correct = sum(
-                1 for ni in nearest_idx
-                if type_groups.get(remaining[ni], "Unknown") == held_out_type
-            )
+            
+            correct = sum(1 for ni in nearest_idx if type_groups.get(remaining[ni], "Unknown") == held_out_type)
+            
             event_accuracies[held_out] = float(correct) / len(nearest_idx)
 
         # Aggregate by disaster type
         type_sums = {}
         type_counts = {}
+        
+        
         for event, acc in event_accuracies.items():
             t = type_groups.get(event, "Unknown")
             type_sums[t] = type_sums.get(t, 0.0) + acc
             type_counts[t] = type_counts.get(t, 0) + 1
         
-        type_accuracies = {
-            t: type_sums[t] / type_counts[t] for t in type_sums
-        }
+        type_accuracies = {t: type_sums[t] / type_counts[t] for t in type_sums}
+        
 
         overall = float(np.mean(list(event_accuracies.values())))
 
@@ -250,9 +278,12 @@ class EmbeddingAnalytics:
             "type_accuracies": type_accuracies,
             "overall_accuracy": overall,
         }
+        
         self._cache["loo_classification"] = result
         
+        
         return result
+
 
 
     def disaster_type_grouping_analysis(self) -> Dict[str, Any]:
@@ -265,6 +296,7 @@ class EmbeddingAnalytics:
         Returns:
             Dict with within_type, overall_within, overall_across, separation_ratio.
         """
+        
         if "disaster_type_grouping" in self._cache:
             return self._cache["disaster_type_grouping"]
 
@@ -277,23 +309,25 @@ class EmbeddingAnalytics:
 
         within_type_sims = {t: [] for t in type_names}
         across_type_sims = []
+        
 
         for i in range(len(events)):
             for j in range(i + 1, len(events)):
                 sim = float(matrix[i, j])
+                
                 if event_types[i] == event_types[j]:
                     within_type_sims[event_types[i]].append(sim)
+                    
                 else:
                     across_type_sims.append(sim)
 
-        within_type = {
-            t: float(np.mean(sims)) if sims else None
-            for t, sims in within_type_sims.items()
-        }
+        within_type = {t: float(np.mean(sims)) if sims else None for t, sims in within_type_sims.items()}
+        
 
         valid_within = [v for v in within_type.values() if v is not None]
         overall_within = float(np.mean(valid_within)) if valid_within else None
         overall_across = float(np.mean(across_type_sims)) if across_type_sims else None
+        
         separation_ratio = (
             overall_within / overall_across
             if overall_within is not None and overall_across and overall_across > 0
@@ -310,6 +344,8 @@ class EmbeddingAnalytics:
         self._cache["disaster_type_grouping"] = result
         
         return result
+    
+    
 
     def intra_event_distributions(self) -> Dict[str, List[float]]:
         """
@@ -331,6 +367,7 @@ class EmbeddingAnalytics:
 
             if count < 2:
                 distributions[event] = [1.0]
+                
                 continue
 
             if count > sample_size:
@@ -341,14 +378,17 @@ class EmbeddingAnalytics:
             else:
                 sampled = embs
 
+
             sim_matrix = cosine_similarity(sampled)
             triu_indices = np.triu_indices(len(sampled), k=1)
             pairwise_sims = sim_matrix[triu_indices]
 
             # Subsample the pairs for frontend performance
+            
             if len(pairwise_sims) > 2000:
                 rng = np.random.RandomState(config.RANDOM_SEED)
                 pairwise_sims = rng.choice(pairwise_sims, size=2000, replace=False)
+                
 
             distributions[event] = [float(s) for s in pairwise_sims]
 
@@ -365,16 +405,19 @@ class EmbeddingAnalytics:
         Returns:
             Dict with mean, std, min, max of sampled pairwise similarities.
         """
+        
         if "global_summary" in self._cache:
             return self._cache["global_summary"]
 
         # Sample from the full dataset
         sample_size = config.ANALYTICS_SAMPLE_SIZE
         n = len(self.embeddings)
+        
 
         rng = np.random.RandomState(config.RANDOM_SEED)
         idx = rng.choice(n, size=min(sample_size, n), replace=False)
         sampled = self.embeddings[idx]
+
 
         sim_matrix = cosine_similarity(sampled)
         triu_indices = np.triu_indices(len(sampled), k=1)
@@ -391,7 +434,9 @@ class EmbeddingAnalytics:
         }
 
         self._cache["global_summary"] = summary
+        
         return summary
+
 
     def export_report(self) -> Dict[str, Any]:
         """

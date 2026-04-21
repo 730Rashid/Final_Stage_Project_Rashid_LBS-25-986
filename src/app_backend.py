@@ -61,9 +61,10 @@ LABEL_DISPLAY_NAMES = {
 }
 
 
-# Damage Severity Scoring: two-anchor contrast approach.
-# CLIP discriminates better between visually opposite extremes than between
-# subtle gradient phrases that all share similar vocabulary.
+# Damage Severity Scoring using two-anchor contrast approach.
+# CLIP discriminates better between visually opposite extremes than between subtle gradient phrases that all share similar vocabulary.
+
+
 SEVERITY_HIGH_ANCHOR = "collapsed rubble destroyed ruins catastrophic damage debris everywhere"
 SEVERITY_LOW_ANCHOR  = "intact undamaged building standing normal clean street no damage"
 SEVERITY_LABELS = [SEVERITY_HIGH_ANCHOR, SEVERITY_LOW_ANCHOR]
@@ -165,8 +166,7 @@ class CrisisDataManager:
             from transformers import CLIPProcessor, CLIPModel
 
             print("Loading CLIP Model...")
-            # FORCE_CPU=1 lets the user bypass CUDA when the GPU is too small
-            # (e.g. the 2GB GPU on this machine) or memory-fragmented
+    
             force_cpu = os.environ.get("FORCE_CPU", "").lower() in ("1", "true", "yes")
             if force_cpu:
                 self.device = "cpu"
@@ -209,8 +209,9 @@ class CrisisDataManager:
     
     def _precompute_label_embeddings(self):
         """Precompute embeddings for classification labels."""
+        
         try:
-            print("Precomputing label embeddings...")
+            print("Precomputing label embeddings")
             
             label_inputs = self.clip_processor(
                 text=CLASSIFICATION_LABELS,
@@ -223,6 +224,7 @@ class CrisisDataManager:
             
             if hasattr(label_features, "pooler_output"):
                 label_features = label_features.pooler_output
+                
             elif hasattr(label_features, "last_hidden_state"):
                 label_features = label_features.last_hidden_state[:, 0, :]
             
@@ -237,6 +239,7 @@ class CrisisDataManager:
 
     def _precompute_severity_embeddings(self):
         """Precompute embeddings for damage severity labels."""
+        
         try:
             print("Precomputing severity embeddings")
 
@@ -259,7 +262,7 @@ class CrisisDataManager:
             norms = np.linalg.norm(severity_features, axis=1, keepdims=True)
             self.severity_embeddings = severity_features / norms
 
-            print("Severity embeddings are reafy")
+            print("Severity embeddings are ready")
 
         except Exception as e:
             print("Could not precompute severity embeddings: {}".format(e))
@@ -274,6 +277,7 @@ class CrisisDataManager:
         Returns:
             Dict with keys: score (0-1), category (str), color (hex str).
         """
+        
         if self.severity_embeddings is None:
             return {"score": 0.5, "category": "Unknown", "color": "#94a3b8"}
 
@@ -281,7 +285,7 @@ class CrisisDataManager:
         sims = cosine_similarity(image_vector, self.severity_embeddings)[0]
 
         # contrast that shows much more the image resembles "destroyed" vs "undamaged"
-        # sigmoid with temperature 20 spreads a ±0.05 contrast range across [0.27, 0.73]
+        # sigmoid with temperature 20 spreads a +-0.05 contrast range across [0.27, 0.73]
         
         
         contrast = float(sims[0] - sims[1])
@@ -315,7 +319,8 @@ class CrisisDataManager:
         Returns:
             Tuple of (indices, similarity_scores).
         """
-        # Encode query
+        # Encode the query
+        
         inputs = self.clip_processor(
             text=[query],
             return_tensors="pt",
@@ -347,6 +352,7 @@ class CrisisDataManager:
         
             return global_indices, similarities[local_top_indices]
         
+        
         else:
             similarities = cosine_similarity(text_vector, self.embeddings)[0]
             top_indices = np.argsort(similarities)[::-1][:top_k]
@@ -362,6 +368,7 @@ class CrisisDataManager:
         subset_indices: Optional[List[int]] = None,
         top_k: int = 50
     ) -> Tuple[np.ndarray, np.ndarray]:
+        
         """
         Find visually similar images.
         
@@ -373,18 +380,26 @@ class CrisisDataManager:
         Returns:
             Tuple of (indices, similarity_scores).
         """
+        
         query_vector = self.embeddings[image_index].reshape(1, -1)
         
         if subset_indices is not None and len(subset_indices) > 0:
             subset_embeddings = self.embeddings[subset_indices]
             similarities = cosine_similarity(query_vector, subset_embeddings)[0]
+            
             local_top_k = min(top_k, len(subset_indices))
             local_top_indices = np.argsort(similarities)[::-1][:local_top_k]
             global_indices = np.array(subset_indices)[local_top_indices]
+            
+            
             return global_indices, similarities[local_top_indices]
+        
+        
         else:
             similarities = cosine_similarity(query_vector, self.embeddings)[0]
             top_indices = np.argsort(similarities)[::-1][:top_k]
+            
+            
             return top_indices, similarities[top_indices]
     
     def multimodal_search(
@@ -415,6 +430,8 @@ class CrisisDataManager:
         Returns:
             Tuple of (indices, similarity_scores).
         """
+        
+        
         import io as _io
 
         # Encode the uploaded image through CLIP
@@ -425,10 +442,13 @@ class CrisisDataManager:
 
         with torch.no_grad():
             image_features = self.clip_model.get_image_features(**inputs)
+            
+            
         image_features = image_features / image_features.norm(p=2, dim=-1, keepdim=True)
         query_vector = image_features.cpu().numpy()
 
         # If there is also a text query, blend the two vectors
+        
         if text_query and text_query.strip():
             text_inputs = self.clip_processor(
                 text=[text_query.strip()], return_tensors="pt", padding=True
@@ -436,6 +456,7 @@ class CrisisDataManager:
 
             with torch.no_grad():
                 text_features = self.clip_model.get_text_features(**text_inputs)
+                
             text_features = text_features / text_features.norm(p=2, dim=-1, keepdim=True)
             text_vector = text_features.cpu().numpy()
 
@@ -444,21 +465,31 @@ class CrisisDataManager:
             norm = np.linalg.norm(query_vector, axis=1, keepdims=True)
             query_vector = query_vector / (norm + 1e-8)
 
-        # Cosine similarity search (same logic as semantic_search)
+        # Cosine similarity search which is the same logic as semantic_search
         if subset_indices is not None and len(subset_indices) > 0:
             subset_embeddings = self.embeddings[subset_indices]
             similarities = cosine_similarity(query_vector, subset_embeddings)[0]
+            
+            
             local_top_k = min(top_k, len(subset_indices))
             local_top_indices = np.argsort(similarities)[::-1][:local_top_k]
             global_indices = np.array(subset_indices)[local_top_indices]
+            
+            
             return global_indices, similarities[local_top_indices]
+        
+        
         else:
             similarities = cosine_similarity(query_vector, self.embeddings)[0]
             top_indices = np.argsort(similarities)[::-1][:top_k]
+            
             return top_indices, similarities[top_indices]
+        
+        
 
     def get_analytics(self):
         """Get or create the EmbeddingAnalytics instance (lazy-loaded)."""
+        
         if self.analytics is None:
             from analytics import EmbeddingAnalytics
             self.analytics = EmbeddingAnalytics(self.embeddings, self.df)
@@ -469,12 +500,14 @@ class CrisisDataManager:
         """Get or create the TopologyAnalytics instance (lazy-loaded)."""
         if self.topology is None:
             from topology_analysis import TopologyAnalytics
+            
             self.topology = TopologyAnalytics(self.embeddings, self.df)
         
         return self.topology
 
     def _get_captioner(self):
-        """Get or create the CLIP Interrogator (lazy-loaded)."""
+        """Get or create the CLIP Interrogator."""
+        
         if self.captioner is None:
             try:
                 from clip_captioning import CLIPInterrogator
@@ -484,46 +517,65 @@ class CrisisDataManager:
                     self.clip_processor,
                     self.device
                 )
-                print("CLIP Interrogator ready")
+                print("CLIP Interrogator is ready")
+                
             except Exception as e:
                 print("Failed to initialise CLIP Interrogator: {}".format(e))
+                
                 self.captioner = None
                 
         return self.captioner
 
+
+
     def _get_heatmap_extractor(self):
-        """Get or create the CLIPAttentionRollout extractor (lazy-loaded)."""
+        """Get or create the CLIPAttentionRollout extractor."""
+        
         if self.heatmap_extractor is None:
             try:
                 from clip_heatmaps import CLIPAttentionRollout
-                print("Initialising CLIP attention rollout...")
+                print("Starting the CLIP attention rollout")
+                
                 self.heatmap_extractor = CLIPAttentionRollout(
                     self.clip_model,
                     self.clip_processor,
                     self.device
                 )
-                print("Attention rollout ready")
+                print("Attention rollout is ready")
+                
+                
             except Exception as e:
                 print("Failed to initialise heatmap extractor: {}".format(e))
                 self.heatmap_extractor = None
                 
+                
         return self.heatmap_extractor
+    
+    
 
     def get_heatmap_bytes(self, image_path: str) -> bytes:
         """Compute and return JPEG heatmap bytes for an image path."""
+        
         extractor = self._get_heatmap_extractor()
+        
         if extractor is None:
             raise RuntimeError("Heatmap extractor not available")
         
         return extractor.compute(image_path)
+    
+    
 
     def get_heatmap_with_stats(self, image_path: str) -> tuple:
         """Compute and return (JPEG bytes, stats dict) for an image path."""
+        
         extractor = self._get_heatmap_extractor()
+        
         if extractor is None:
-            raise RuntimeError("Heatmap extractor not available")
+            raise RuntimeError("Heatmap extractor isn't available")
         
         return extractor.compute_with_stats(image_path)
+    
+    
 
     def caption_image(
         self,
@@ -569,6 +621,7 @@ class CrisisDataManager:
 
         except Exception as e:
             print("Failed to caption image {}: {}".format(image_index, e))
+            
             return {
                 "caption": "Caption generation failed",
                 "details": {},
@@ -590,6 +643,7 @@ class CrisisDataManager:
         Returns:
             List of (label, confidence) tuples.
         """
+        
         if self.label_embeddings is None:
             return []
         
@@ -597,6 +651,7 @@ class CrisisDataManager:
         similarities = cosine_similarity(image_vector, self.label_embeddings)[0]
         
         results = []
+        
         for i, score in enumerate(similarities):
             if score >= threshold:
                 display_name = LABEL_DISPLAY_NAMES[CLASSIFICATION_LABELS[i]]
@@ -618,8 +673,10 @@ def get_manager() -> CrisisDataManager:
     with _lock:
         if _manager is None:
             m = CrisisDataManager()
+            
             if not m.load():
                 raise RuntimeError("CrisisDataManager failed to load")
+            
             _manager = m
     
     return _manager
@@ -695,7 +752,7 @@ def get_heatmap_with_stats(image_path):
 
 
 if __name__ == "__main__":
-    # Demo usage
+    
     print("\nVisualisng Natural Disaster Image Embeddings \n")
     
     manager = get_manager()
@@ -709,4 +766,4 @@ if __name__ == "__main__":
     indices, scores = manager.semantic_search(query, top_k=5)
     
     for idx, score in zip(indices, scores):
-        print("  [{:.1f}%] {}".format(score * 100, manager.df.iloc[idx]["filename"]))
+        print("[{:.1f}%] {}".format(score * 100, manager.df.iloc[idx]["filename"]))

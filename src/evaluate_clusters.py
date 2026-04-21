@@ -10,9 +10,6 @@ Metrics Calculated:
     Davies-Bouldin Index: Lower values indicate better clustering.
     Calinski-Harabasz Index: Higher values indicate denser, well-separated clusters.
 
-Author: Rashid
-Supervisor: XinHui Ma
-Project: Visualising Natural Disaster Image Embeddings
 """
 
 import sys
@@ -49,18 +46,22 @@ def load_data() -> Tuple[Optional[np.ndarray], Optional[List[str]]]:
     Returns:
         Tuple of (coordinates array, event labels list) or (None, None) if not found.
     """
-    print("Loading data...")
+    print("Loading the data")
     
     # Load 2D coordinates
+    
     if not UMAP_COORDS_PATH.exists():
         print("Error: UMAP coordinates not found at {}".format(UMAP_COORDS_PATH))
         print("You need to run umap_reduction.py first before this")
+        
         return None, None
     
     coords = np.load(UMAP_COORDS_PATH)
-    print("  Loaded {} 2D coordinates".format(len(coords)))
+    
+    print("Loaded {} 2D coordinates".format(len(coords)))
     
     # Load filenames and extract event labels
+    
     if not FILENAMES_PATH.exists():
         print("Error: Filenames not found at {}".format(FILENAMES_PATH))
         return None, None
@@ -70,7 +71,8 @@ def load_data() -> Tuple[Optional[np.ndarray], Optional[List[str]]]:
     
     # Parse event labels
     events = [parse_event(path) for path in filenames]
-    print("  Extracted {} event labels".format(len(events)))
+    
+    print("Extracted {} event labels".format(len(events)))
     
     return coords, events
 
@@ -86,18 +88,21 @@ def calculate_metrics(coords: np.ndarray, labels: list) -> dict:
     Returns:
         Dictionary containing metric values and interpretation.
     """
-    print("\nCalculating clustering metrics...")
+    print("\nCalculating clustering metrics")
     
     # Encode string labels to integers for sklearn
+    
     encoder = LabelEncoder()
     encoded_labels = encoder.fit_transform(labels)
     
     # Calculate metrics
+    
     silhouette = silhouette_score(coords, encoded_labels)
     davies_bouldin = davies_bouldin_score(coords, encoded_labels)
     calinski = calinski_harabasz_score(coords, encoded_labels)
     
     # Interpretation thresholds
+    
     if silhouette > 0.5:
         silhouette_quality = "Strong separation"
 
@@ -109,6 +114,7 @@ def calculate_metrics(coords: np.ndarray, labels: list) -> dict:
     
     else:
         silhouette_quality = "Poor, overlapping clusters"
+    
     
     if davies_bouldin < 1.0:
         db_quality = "Excellent clustering"
@@ -125,11 +131,13 @@ def calculate_metrics(coords: np.ndarray, labels: list) -> dict:
             "range": "[-1, 1] (higher is better)",
             "interpretation": silhouette_quality
         },
+        
         "davies_bouldin_index": {
             "value": round(davies_bouldin, 4),
             "range": "[0, inf) (lower is better)",
             "interpretation": db_quality
         },
+        
         "calinski_harabasz_index": {
             "value": round(calinski, 2),
             "range": "[0, inf) (higher is better)",
@@ -155,7 +163,7 @@ def generate_report(
     Returns:
         Complete report dictionary.
     """
-    print("\nGenerating evaluation report...")
+    print("\nGenerating evaluation report")
     
     # Count samples per class
     class_counts = Counter(events)
@@ -174,20 +182,24 @@ def generate_report(
     # Save as JSON
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     json_path = OUTPUT_DIR / "cluster_evaluation.json"
+    
     with open(json_path, "w") as f:
         json.dump(report, f, indent=2)
     
-    print("  Saved JSON report: {}".format(json_path))
+    print("Saved JSON report: {}".format(json_path))
     
     # Print summary
     print("Cluster Evaluation Result")
     print("Dataset: ({:,} images)".format(len(events)))
     print("Number of Event Categories: {}".format(len(classes)))
+    
     print("")
     print("Class Distribution:")
+    
     for event, count in sorted(class_counts.items(), key=lambda x: -x[1]):
         pct = 100 * count / len(events)
-        print("  {:25s} {:5,} ({:5.1f}%)".format(event, count, pct))
+        print("{:25s} {:5,} ({:5.1f}%)".format(event, count, pct))
+
 
     print("")
     print("Clustering Metrics:")
@@ -197,6 +209,7 @@ def generate_report(
         print("Value: {}".format(data["value"]))
         print("Range: {}".format(data["range"]))
         print("Interpretation: {}".format(data["interpretation"]))
+        
         print("")
     
     print("Report saved to: {}".format(json_path))
@@ -212,14 +225,14 @@ def main() -> None:
     
     # Load data
     coords, events = load_data()
+    
     if coords is None:
         sys.exit(1)
     
     # Validate data alignment
     if len(coords) != len(events):
-        print("Error: Mismatch between coordinates ({}) and labels ({})".format(
-            len(coords), len(events)
-        ))
+        print("Error: Mismatch between coordinates ({}) and labels ({})".format(len(coords), len(events)))
+        
         sys.exit(1)
     
     # Calculate metrics

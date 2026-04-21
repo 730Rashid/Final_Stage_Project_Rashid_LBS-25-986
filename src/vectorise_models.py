@@ -8,10 +8,6 @@ data/comparison/ as a separate .npy file.
 Models:
   SigLIP base  (768 dim, sigmoid loss, trained on WebLI 10B pairs)
   ResNet50     (2048 dim, ImageNet baseline, no text understanding)
-
-Author: Rashid
-Supervisor: XinHui Ma
-Project: Visualising Natural Disaster Image Embeddings
 """
 
 import sys
@@ -28,6 +24,7 @@ from typing import Tuple, List, Any
 
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
+
 from config.settings import config
 
 DATASET_PATH = PROJECT_ROOT / "data" / "processed" / "clean_data"
@@ -36,6 +33,7 @@ OUTPUT_DIR = config.COMPARISON_DIR
 
 def find_images(root_dir: Path) -> List[str]:
     """Find all image files in the directory, matching vectorise.py logic."""
+    
     image_paths = []
 
     for ext in config.IMAGE_EXTENSIONS:
@@ -55,13 +53,15 @@ def load_siglip_model(device: str) -> Tuple[Any, Any]:
     to avoid the tokeniser resolution bug in transformers when
     no text encoder is needed.
     """
+    
     from transformers import AutoModel, SiglipImageProcessor
 
     hf_id = config.MODEL_REGISTRY["siglip"]["hf_id"]
-    print("  Loading {} ...".format(hf_id))
+    print("Loading {} ".format(hf_id))
 
     model = AutoModel.from_pretrained(hf_id).to(device)
     processor = SiglipImageProcessor.from_pretrained(hf_id)
+    
     model.eval()
 
     print("SigLIP loaded successfully")
@@ -71,15 +71,17 @@ def load_siglip_model(device: str) -> Tuple[Any, Any]:
 
 def load_resnet50_model(device: str) -> Tuple[Any, Any]:
     """Load ResNet50 with the classification head removed (2048 dim output)."""
+    
     import torchvision.models as models
     import torchvision.transforms as transforms
 
-    print("Loading ResNet50 ImageNet pretrained ...")
+    print("Loading ResNet50 ImageNet pretrained ")
 
     weights = models.ResNet50_Weights.IMAGENET1K_V2
     full_model = models.resnet50(weights=weights)
 
     # Remove the final FC layer to get raw 2048 dim features
+    
     feature_extractor = torch.nn.Sequential(*list(full_model.children())[:-1])
     feature_extractor = feature_extractor.to(device).eval()
 
@@ -101,8 +103,9 @@ def load_resnet50_model(device: str) -> Tuple[Any, Any]:
 def process_images_siglip(model, processor, device, image_paths):
     """Generate 768 dim SigLIP embeddings for all images."""
     # Batch size 4 prevents segfault from PIL memory accumulation on CPU
+    
     batch_size = 4
-    print("  Batch size: {} (memory safe)".format(batch_size))
+    print("Batch size: {} (memory safe)".format(batch_size))
 
     embeddings = []
     valid_paths = []
@@ -121,6 +124,7 @@ def process_images_siglip(model, processor, device, image_paths):
 
                 # Copy pixels and close the file handle immediately
                 # to prevent OS file descriptor exhaustion across 17k images
+                
                 img_copy = img.copy()
                 img.close()
 
@@ -163,7 +167,7 @@ def process_images_siglip(model, processor, device, image_paths):
 
     embeddings = np.vstack(embeddings) if embeddings else np.array([])
 
-    print("  Generated {} embeddings (dim={})".format(
+    print("Generated {} embeddings (dim={})".format(
         len(embeddings), embeddings.shape[1] if len(embeddings) else 0))
 
     return embeddings, valid_paths, corrupt_files
@@ -171,9 +175,10 @@ def process_images_siglip(model, processor, device, image_paths):
 
 def process_images_resnet50(model, preprocess, device, image_paths):
     """Generate 2048 dim ResNet50 embeddings for all images."""
+    
     batch_size = config.MODEL_REGISTRY["resnet50"]["batch_size"]
 
-    print("  Batch size: {}".format(batch_size))
+    print("Batch size: {}".format(batch_size))
 
     embeddings = []
     valid_paths = []
@@ -215,7 +220,7 @@ def process_images_resnet50(model, preprocess, device, image_paths):
 
     embeddings = np.vstack(embeddings) if embeddings else np.array([])
 
-    print("  Generated {} embeddings (dim={})".format(
+    print("Generated {} embeddings (dim={})".format(
         len(embeddings), embeddings.shape[1] if len(embeddings) else 0))
 
     return embeddings, valid_paths, corrupt_files
@@ -235,6 +240,7 @@ def save_model_embeddings(model_key, embeddings, paths):
 
 def copy_clip_embeddings():
     """Copy existing CLIP embeddings into the comparison directory."""
+    
     src_emb = PROJECT_ROOT / "data" / "embeddings" / "embeddings.npy"
     src_fn  = PROJECT_ROOT / "data" / "embeddings" / "filenames.json"
 
@@ -242,20 +248,25 @@ def copy_clip_embeddings():
 
     if src_emb.exists():
         shutil.copy2(src_emb, OUTPUT_DIR / "clip_embeddings.npy")
-        print("  Copied CLIP embeddings to comparison directory")
+        
+        print("Copied CLIP embeddings to comparison directory")
+
 
     if src_fn.exists():
         shutil.copy2(src_fn, OUTPUT_DIR / "clip_filenames.json")
-        print("  Copied CLIP filenames to comparison directory")
+        
+        print("Copied CLIP filenames to comparison directory")
 
 
 def main():
     """Main entry point. Vectorise with SigLIP and ResNet50."""
-    print("Multi Model Vectorisation Pipeline")
+    
+    print("Multi Model Vectorisation")
     print("Timestamp: {}".format(datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
 
     if not DATASET_PATH.exists():
         print("Error: Dataset not found at {}".format(DATASET_PATH))
+        
         sys.exit(1)
 
     if torch.cuda.is_available():
@@ -263,32 +274,34 @@ def main():
     else:
         device = "cpu"
         
+        
     print("Device: {}".format(device))
 
     image_paths = find_images(DATASET_PATH)
     print("Found {} images".format(len(image_paths)))
+    
     print()
 
-    # Step 1: Copy existing CLIP embeddings
-    print("1/3 Copying existing CLIP embeddings...")
+    # Copy existing CLIP embeddings
+    print("Copying existing CLIP embeddings...")
     copy_clip_embeddings()
     print()
 
-    # Step 2: Generate SigLIP embeddings
-    print("2/3 Generating SigLIP embeddings...")
+    # Generate SigLIP embeddings
+    print("Generating SigLIP embeddings...")
     siglip_model, siglip_proc = load_siglip_model(device)
 
-    siglip_embs, siglip_paths, siglip_corrupt = process_images_siglip(
-        siglip_model, siglip_proc, device, image_paths)
+    siglip_embs, siglip_paths, siglip_corrupt = process_images_siglip(siglip_model, siglip_proc, device, image_paths)
 
     save_model_embeddings("siglip", siglip_embs, siglip_paths)
 
     del siglip_model, siglip_proc
     torch.cuda.empty_cache()
+    
     print()
 
-    # Step 3: Generate ResNet50 embeddings
-    print("3/3 Generating ResNet50 embeddings...")
+    # Generate ResNet50 embeddings
+    print("Generating ResNet50 embeddings...")
     resnet_model, resnet_preprocess = load_resnet50_model(device)
 
     resnet_embs, resnet_paths, resnet_corrupt = process_images_resnet50(

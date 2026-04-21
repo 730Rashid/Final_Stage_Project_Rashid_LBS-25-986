@@ -1,0 +1,159 @@
+{
+ "id": "5YMUOTCQFJ",
+ "fps": {
+  "num": 30,
+  "den": 1
+ },
+ "display_ratio": {
+  "num": 16,
+  "den": 9
+ },
+ "pixel_ratio": {
+  "num": 1,
+  "den": 1
+ },
+ "width": 1920,
+ "height": 1080,
+ "sample_rate": 48000,
+ "channels": 2,
+ "channel_layout": 3,
+ "settings": {},
+ "clips": [],
+ "effects": [],
+ "files": [],
+ "duration": 300,
+ "scale": 15.0,
+ "tick_pixels": 100,
+ "playhead_position": 0,
+ "profile": "FHD 1080p 30 fps",
+ "export_settings": null,
+ "layers": [
+  {
+   "id": "L1",
+   "label": "",
+   "number": 1000000,
+   "y": 0,
+   "lock": false
+  },
+  {
+   "id": "L2",
+   "label": "",
+   "number": 2000000,
+   "y": 0,
+   "lock": false
+  },
+  {
+   "id": "L3",
+   "label": "",
+   "number": 3000000,
+   "y": 0,
+   "lock": false
+  },
+  {
+   "id": "L4",
+   "label": "",
+   "number": 4000000,
+   "y": 0,
+   "lock": false
+  },
+  {
+   "id": "L5",
+   "label": "",
+   "number": 5000000,
+   "y": 0,
+   "lock": false
+  }
+ ],
+ "markers": [],
+ "progress": [],
+ "history": {
+  "undo": [
+   {
+    "type": "update",
+    "key": [
+     "profile"
+    ],
+    "value": "FHD 1080p 30 fps",
+    "old_values": "HD 720p 30 fps",
+    "transaction": "cd9be19d-6faf-4b1e-9620-d99b4a0dfbfa"
+   },
+   {
+    "type": "update",
+    "key": [
+     "width"
+    ],
+    "value": 1920,
+    "old_values": 1280,
+    "transaction": "cd9be19d-6faf-4b1e-9620-d99b4a0dfbfa"
+   },
+   {
+    "type": "update",
+    "key": [
+     "height"
+    ],
+    "value": 1080,
+    "old_values": 720,
+    "transaction": "cd9be19d-6faf-4b1e-9620-d99b4a0dfbfa"
+   },
+   {
+    "type": "update",
+    "key": [
+     "display_ratio"
+    ],
+    "value": {
+     "num": 16,
+     "den": 9
+    },
+    "old_values": {
+     "num": 16,
+     "den": 9
+    },
+    "transaction": "cd9be19d-6faf-4b1e-9620-d99b4a0dfbfa"
+   },
+   {
+    "type": "update",
+    "key": [
+     "pixel_ratio"
+    ],
+    "value": {
+     "num": 1,
+     "den": 1
+    },
+    "old_values": {
+     "num": 1,
+     "den": 1
+    },
+    "transaction": "cd9be19d-6faf-4b1e-9620-d99b4a0dfbfa"
+   },
+   {
+    "type": "update",
+    "key": [
+     "fps"
+    ],
+    "value": {
+     "num": 30,
+     "den": 1
+    },
+    "old_values": {
+     "num": 30,
+     "den": 1
+    },
+    "transaction": "cd9be19d-6faf-4b1e-9620-d99b4a0dfbfa"
+   },
+   {
+    "type": "update",
+    "key": [
+     "export_settings"
+    ],
+    "value": null,
+    "old_values": null,
+    "transaction": "cd9be19d-6faf-4b1e-9620-d99b4a0dfbfa"
+   }
+  ],
+  "redo": []
+ },
+ "version": {
+  "openshot-qt": "3.5.1",
+  "libopenshot": "0.7.0"
+ }
+}

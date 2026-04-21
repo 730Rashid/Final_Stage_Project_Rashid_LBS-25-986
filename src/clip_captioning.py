@@ -6,9 +6,6 @@ captions for crisis images. Instead of a separate captioning model, we probe
 CLIP with structured vocabularies across multiple categories and compose
 human-readable descriptions.
 
-Author: Rashid
-Supervisor: XinHui Ma
-Project: Visualising Natural Disaster Image Embeddings
 """
 
 import numpy as np
@@ -246,6 +243,7 @@ class CLIPInterrogator:
         if style == "brief":
             # Short, headline-style caption
             parts = []
+            
             if scene:
                 parts.append(scene)
             if damage:
@@ -253,16 +251,19 @@ class CLIPInterrogator:
 
             if parts:
                 return "; ".join(parts).capitalize() + "."
+            
             return "Disaster scene."
 
         # Natural style sentence
         caption_parts = []
 
         # Start with the scene
+        
         if scene:
             caption_parts.append("This appears to be a disaster in {}".format(
                 "an " + scene if scene[0] in "aeiou" else "a " + scene
             ))
+            
         else:
             caption_parts.append("This appears to be a disaster scene")
 
@@ -288,8 +289,10 @@ class CLIPInterrogator:
 
         # Join parts with commas and periods
         caption = caption_parts[0]
+        
         if len(caption_parts) > 1:
             caption += ", " + ", ".join(caption_parts[1:-1])
+            
             if len(caption_parts) > 2:
                 caption += ","
             caption += " " + caption_parts[-1]
@@ -297,12 +300,15 @@ class CLIPInterrogator:
         caption += "."
 
         return caption
+    
+    
 
     def batch_caption(
         self,
         image_embeddings: np.ndarray,
         confidence_threshold: float = 0.22,
         style: str = "natural"
+        
     ) -> List[str]:
         """
         Generate captions for multiple images efficiently.
@@ -315,12 +321,15 @@ class CLIPInterrogator:
         Returns:
             List of caption strings, one per image
         """
+        
         captions = []
 
         for i in range(len(image_embeddings)):
             embedding = image_embeddings[i]
+            
             interrogation = self.interrogate(embedding, confidence_threshold)
             caption = self.compose_caption(interrogation, style)
+            
             captions.append(caption)
 
         return captions

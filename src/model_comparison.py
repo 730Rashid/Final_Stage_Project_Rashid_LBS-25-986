@@ -12,9 +12,6 @@ across 3 models x 3 reductions x 2 clustering algorithms:
 
 Results are cached to disk as JSON for the Dash app's Model Comparison tab.
 
-Author: Rashid
-Supervisor: XinHui Ma
-Project: Visualising Natural Disaster Image Embeddings
 """
 
 import sys

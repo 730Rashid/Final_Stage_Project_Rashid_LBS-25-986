@@ -19,9 +19,6 @@ Phase 2: Ollivier Ricci Curvature
 Both results are cached to disk so they are computed only once per
 server session.
 
-Author: Rashid
-Supervisor: XinHui Ma
-Project: Visualising Natural Disaster Image Embeddings
 """
 
 import json
@@ -37,6 +34,7 @@ import networkx as nx
 
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
+
 from config.settings import config
 
 # Disk cache path
@@ -62,6 +60,7 @@ def _stratified_sample(
     sample_embs   : (n, D) float32 array
     sample_events : (n,) object array of event names
     """
+    
     rng = np.random.RandomState(config.RANDOM_SEED)
     per_event = max(1, n // len(events))
 
@@ -89,6 +88,7 @@ def _cosine_distance_matrix(embs: np.ndarray) -> np.ndarray:
     L2 normalises embeddings first so the formula cosine_dist = 1 - dot(u, v)
     is exact. Clipped to [0, 2] for numerical safety.
     """
+    
     norms = np.linalg.norm(embs, axis=1, keepdims=True)
     norms = np.where(norms == 0, 1.0, norms)
     normed = embs / norms
@@ -161,17 +161,17 @@ class TopologyAnalytics:
         -------
         Dict with keys: sample_size, h0 (birth/death/persistence), h1 (same)
         """
+        
         if "persistence" in self._cache:
             return self._cache["persistence"]
 
-        sample_embs, _ = _stratified_sample(
-            self.embeddings, self.df, self.events, _PH_SAMPLE_SIZE
-        )
+        sample_embs, _ = _stratified_sample(self.embeddings, self.df, self.events, _PH_SAMPLE_SIZE)
 
         # Cosine distance matrix (precomputed for ripser)
         dist_matrix = _cosine_distance_matrix(sample_embs)
 
         # Vietoris Rips up to dimension 1 (H0 + H1)
+        
         result = ripser.ripser(dist_matrix, distance_matrix=True, maxdim=1)
         dgms = result["dgms"]
 
@@ -202,7 +202,7 @@ class TopologyAnalytics:
 
         return output
 
-    # Phase 2: Ollivier Ricci Curvature
+    # Now we move onto Ollivier Ricci Curvature
 
     def ollivier_ricci_curvature(self) -> Dict[str, Any]:
         """
@@ -228,6 +228,7 @@ class TopologyAnalytics:
         Dict with edge_curvatures, event_mean_curvature, global stats,
         sample_size, and k_neighbors.
         """
+        
         if "ricci" in self._cache:
             return self._cache["ricci"]
 
@@ -256,6 +257,7 @@ class TopologyAnalytics:
 
         # Compute curvature for every edge via Earth Mover's Distance
         edge_curvatures = []
+        
         edge_list = sorted(edge_set)
 
         for (u, v) in edge_list:
@@ -264,12 +266,14 @@ class TopologyAnalytics:
 
             if not nu or not nv:
                 edge_curvatures.append(0.0)
+                
                 continue
 
             d_uv = float(cos_dist[u, v])
 
             if d_uv < 1e-10:
                 edge_curvatures.append(1.0)
+                
                 continue
 
             # Uniform mass distributions over each neighbourhood
@@ -302,6 +306,7 @@ class TopologyAnalytics:
                 event_curv_sums[eu] += edge_curvatures[idx]
                 event_curv_counts[eu] += 1
 
+
         event_mean_curvature: Dict[str, float] = {}
 
         for e in self.events:
@@ -327,6 +332,8 @@ class TopologyAnalytics:
         }
 
         self._cache["ricci"] = output
+        
         self._save_disk_cache()
+
 
         return output

@@ -38,15 +38,19 @@ def load_embeddings() -> Tuple[Optional[np.ndarray], Optional[List[str]]]:
     Returns:
         Tuple of (embeddings array, filenames list) or (None, None) if not found.
     """
+    
     print("Loading embeddings from: {}".format(EMBEDDINGS_PATH))
     
     if not EMBEDDINGS_PATH.exists():
         print("Embeddings file not found")
         print("Please run vectorise.py first to generate embeddings")
+        
+        
         return None, None
     
     embeddings = np.load(EMBEDDINGS_PATH)
     print("Loaded {} embeddings of dimension {}".format(embeddings.shape[0], embeddings.shape[1]))
+    
     
     # Load filenames if available
     filenames = None
@@ -70,6 +74,7 @@ def run_umap(embeddings: np.ndarray) -> np.ndarray:
     Returns:
         Array of shape (N, 2) containing 2D coordinates.
     """
+    
     print("Running UMAP reduction")
     print("n_neighbors: {}".format(config.UMAP_N_NEIGHBOURS))
     print("min_dist: {}".format(config.UMAP_MIN_DIST))
@@ -101,30 +106,37 @@ def save_results(coords: np.ndarray, filenames: Optional[List[str]]) -> None:
         coords: 2D UMAP coordinates of shape (N, 2).
         filenames: Optional list of source filenames.
     """
+    
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     
     # Save coordinates as numpy array
     coords_path = OUTPUT_DIR / "umap_coords.npy"
     np.save(coords_path, coords)
+    
     print("Saved coordinates to: {}".format(coords_path))
     print("Shape: {}".format(coords.shape))
     
     # Save as JSON for the demo app (x, y, path format)
     umap_data = []
+    
     for i, (x, y) in enumerate(coords):
         entry = {
             "x": float(x),
             "y": float(y),
             "path": filenames[i] if filenames else str(i)
         }
+        
         umap_data.append(entry)
     
     json_path = OUTPUT_DIR / "umap_data.json"
+    
     with open(json_path, "w") as f:
         json.dump(umap_data, f, indent=2)
+        
     print("Saved JSON data to: {}".format(json_path))
     
     # Save metadata
+    
     metadata = {
         "generated_at": datetime.now().isoformat(),
         "n_samples": len(coords),
@@ -135,8 +147,10 @@ def save_results(coords: np.ndarray, filenames: Optional[List[str]]) -> None:
     }
     
     metadata_path = OUTPUT_DIR / "umap_metadata.json"
+    
     with open(metadata_path, "w") as f:
         json.dump(metadata, f, indent=2)
+        
     print("Saved metadata to: {}".format(metadata_path))
     
     # Copy filenames for convenience
@@ -151,18 +165,20 @@ def save_results(coords: np.ndarray, filenames: Optional[List[str]]) -> None:
 
 def main():
     """Main entry point."""
-    print("Starting UMAP Reduction Pipeline...")
+    
+    print("Starting UMAP Reduction")
     print("Timestamp: {}".format(datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     
     # Load embeddings
     embeddings, filenames = load_embeddings()
+    
     if embeddings is None:
         sys.exit(1)
     
     # Run UMAP
     coords = run_umap(embeddings)
     
-    # Save results
+    # Save the results
     save_results(coords, filenames)
     
     print("Pipeline complete.")

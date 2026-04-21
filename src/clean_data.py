@@ -45,9 +45,10 @@ def setup_folders() -> None:
     """
     Create the output directory if it does not exist.
     """
+    
     if not CLEAN_DATA_PATH.exists():
         CLEAN_DATA_PATH.mkdir(parents=True, exist_ok=True)
-        print("  Created output folder: {}".format(CLEAN_DATA_PATH))
+        print("Created output folder: {}".format(CLEAN_DATA_PATH))
 
 
 def is_valid_image(file_path: Path) -> Tuple[bool, str]:
@@ -67,6 +68,7 @@ def is_valid_image(file_path: Path) -> Tuple[bool, str]:
         Tuple of (is_valid, reason) where is_valid is a boolean and
         reason is a string explaining why it was rejected.
     """
+    
     path = Path(file_path)
     
     # Check file size
@@ -74,15 +76,21 @@ def is_valid_image(file_path: Path) -> Tuple[bool, str]:
         file_size = path.stat().st_size
         if file_size < MIN_FILE_SIZE:
             return False, "File too small ({} bytes)".format(file_size)
+        
+        
     except Exception:
         return False, "Cannot read file"
+    
     
     # Check if file is corrupt
     try:
         with Image.open(file_path) as img:
             img.verify()
+            
+            
     except Exception as e:
         return False, "Corrupt file ({})".format(type(e).__name__)
+    
     
     # Check resolution and aspect ratio
     try:
@@ -96,6 +104,8 @@ def is_valid_image(file_path: Path) -> Tuple[bool, str]:
 
             if aspect_ratio > MAX_ASPECT_RATIO:
                 return False, "Too wide (ratio: {:.1f})".format(aspect_ratio)
+            
+            
             if aspect_ratio < MIN_ASPECT_RATIO:
                 return False, "Too tall (ratio: {:.1f})".format(aspect_ratio)
                 
@@ -113,20 +123,21 @@ def clean_dataset() -> None:
     and copies valid images to the clean data folder. The original folder
     structure is preserved so that event categories remain intact.
     """
-    print("Data Cleaning Pipeline...")
+    
+    print("Data Cleaning Pipeline is starting")
+    
     print("Timestamp: {}".format(datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     
     # Check input folder exists
     if not RAW_DATA_PATH.exists():
         print("Error: Raw data folder does not exist")
         print("Path: {}".format(RAW_DATA_PATH))
-        print("Please download the dataset first")
-        
+    
         return
     
     setup_folders()
     
-    print("Scanning for images...")
+    print("Scanning and checking for images")
     
     # Find all image files
     image_files = []
@@ -181,6 +192,7 @@ def clean_dataset() -> None:
             except Exception as e:
                 stats["skipped"]["Copy error"] += 1
                 stats["by_category"][category]["skipped"] += 1
+                
                 errors_log.append("{}\tCopy error: {}".format(src_path, e))
         
         else:
@@ -202,6 +214,7 @@ def clean_dataset() -> None:
         stats["valid"], 
         100 * stats["valid"] / total_images
     ))
+    
     print("Skipped: {:,} ({:.1f}%)".format(
         total_skipped, 
         100 * total_skipped / total_images
@@ -210,6 +223,7 @@ def clean_dataset() -> None:
     print("")
     print("Rejection Reasons:")
     sorted_reasons = sorted(stats["skipped"].items(), key=lambda x: -x[1])
+    
     for reason, count in sorted_reasons:
         print("  {}: {:,}".format(reason, count))
     
@@ -226,13 +240,14 @@ def clean_dataset() -> None:
         
         if total > 0:
             pct = 100 * counts["valid"] / total
-            print("  {}: {:,}/{:,} valid ({:.0f}%)".format(cat, counts["valid"], total, pct))
+            print("{}: {:,}/{:,} valid ({:.0f}%)".format(cat, counts["valid"], total, pct))
     
     # Save logs
     log_dir = PROJECT_ROOT / "data" / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
     
     error_log_path = log_dir / "cleaning_errors.log"
+    
     with open(error_log_path, "w", encoding="utf-8") as f:
         for line in errors_log:
             f.write(line + "\n")
@@ -253,13 +268,14 @@ def clean_dataset() -> None:
     }
     
     summary_path = log_dir / "cleaning_summary.json"
+    
     with open(summary_path, "w") as f:
         json.dump(summary, f, indent=2)
     
     print("Logs saved to: {}, {}".format(error_log_path, summary_path))
 
     print("")
-    print("Cleaning complete. Output: {}".format(CLEAN_DATA_PATH))
+    print("Cleaning is complete. Output: {}".format(CLEAN_DATA_PATH))
 
 
 if __name__ == "__main__":
