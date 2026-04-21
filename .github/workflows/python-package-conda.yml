@@ -1,0 +1,44 @@
+name: Python Package using Conda
+
+on: [push]
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    strategy:
+      max-parallel: 5
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Miniconda with Mamba
+      uses: conda-incubator/setup-miniconda@v3
+      with:
+        environment-file: .github/workflows/environment.yml
+        activate-environment: my-research-env
+        use-mamba: true
+        auto-activate-base: false
+
+    - name: Cache conda packages
+      uses: actions/cache@v4
+      with:
+        path: ~/conda_pkgs_dir
+        key: conda-${{ runner.os }}-${{ hashFiles('.github/workflows/environment.yml') }}
+
+    - name: Verify environment
+      shell: bash -l {0}
+      run: |
+        conda info
+        conda list
+        python --version
+
+    - name: Lint with flake8
+      shell: bash -l {0}
+      run: |
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics --exclude=.venv,data,archive,__pycache__
+        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics --exclude=.venv,data,archive,__pycache__
+
+    - name: Test with pytest
+      shell: bash -l {0}
+      run: |
+        pytest tests/

@@ -1,43 +1,31 @@
-name: Python Package using Conda
-
-on: [push]
-
-jobs:
-  build-linux:
-    runs-on: ubuntu-latest
-    strategy:
-      max-parallel: 5
-
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Setup Miniconda with Mamba
-      uses: conda-incubator/setup-miniconda@v3
-      with:
-        environment-file: .github/workflows/environment.yml
-        use-mamba: true
-        auto-activate-base: false
-
-    - name: Conda Cache
-      uses: actions/cache@v4
-      with:
-        path: /usr/share/miniconda/pkgs
-        key: conda-${{ runner.os }}-${{ hashFiles('.github/workflows/environment.yml') }}
-
-    - name: Verify Conda Environment
-      shell: bash -l {0}
-      run: |
-        conda info
-        conda list
-        conda run -n my-research-env python --version
-
-    - name: Lint with flake8
-      shell: bash -l {0}
-      run: |
-        conda run -n my-research-env flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        conda run -n my-research-env flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-
-    - name: Test with pytest
-      shell: bash -l {0}
-      run: |
-        conda run -n my-research-env pytest
+name: my-research-env
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - cpuonly
+  - pytorch>=2.0.0
+  - torchvision>=0.15.0
+  - numpy>=1.24.0
+  - pandas>=2.0.0
+  - scikit-learn>=1.3.0
+  - pillow>=10.0.0
+  - umap-learn>=0.5.3
+  - hdbscan>=0.8.33
+  - pytest>=7.4.0
+  - flake8>=6.0.0
+  - pip:
+    - transformers>=4.36.0
+    - plotly>=5.15.0
+    - dash>=2.11.0
+    - dash-bootstrap-components>=1.4.0
+    - flask>=2.3.0
+    - tqdm>=4.65.0
+    - h5py>=3.9.0
+    - opencv-python-headless>=4.8.0
+    - ripser>=0.6.0
+    - pot>=0.9.0
+    - networkx>=3.0
