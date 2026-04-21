@@ -5,9 +5,6 @@ Provides utility functions for setting up logging throughout the project.
 Supports both console and file logging, with special handling for tqdm
 progress bars to avoid display issues.
 
-Author: Rashid
-Supervisor: XinHui Ma
-Project: Visualising Natural Disaster Image Embeddings
 """
 
 import logging

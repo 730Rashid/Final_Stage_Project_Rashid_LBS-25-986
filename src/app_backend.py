@@ -8,9 +8,6 @@ This module provides the AI logic for the CrisisMMD visualisation app:
 - Visual search (image-to-image)
 - Zero-shot classification
 
-Author: Rashid
-Supervisor: XinHui Ma
-Project: Visualising Natural Disaster Image Embeddings
 """
 
 import numpy as np

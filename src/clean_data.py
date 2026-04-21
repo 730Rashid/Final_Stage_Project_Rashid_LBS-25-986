@@ -6,9 +6,6 @@ vectorisation. Running this first ensures that only high-quality images
 are processed by the embedding pipeline, which improves the quality of
 the final visualisation.
 
-Author: Rashid
-Supervisor: XinHui Ma
-Project: Visualising Natural Disaster Image Embeddings
 """
 
 import sys

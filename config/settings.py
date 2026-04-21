@@ -4,10 +4,6 @@ Central Project Configuration.
 This module contains all the configuration settings for the project.
 Using a centralised configuration makes it easy to adjust parameters
 and ensures consistency across all modules.
-
-Author: Rashid
-Supervisor: XinHui Ma
-Project: Visualising Natural Disaster Image Embeddings
 """
 
 from pathlib import Path
@@ -41,9 +37,7 @@ class Config:
     # Image Processing
     IMAGE_SIZE: Tuple[int, int] = (224, 224)
     THUMBNAIL_SIZE: Tuple[int, int] = (128, 128)
-    IMAGE_EXTENSIONS: List[str] = field(
-        default_factory=lambda: [".jpg", ".jpeg", ".png", ".bmp"]
-    )
+    IMAGE_EXTENSIONS: List[str] = field(default_factory=lambda: [".jpg", ".jpeg", ".png", ".bmp"])
     MAX_IMAGE_SIZE_MB: float = 10.0
     
     # CLIP normalisation constants
@@ -112,14 +106,11 @@ class Config:
     DATASET_NAME: str = "CrisisMMD"
     DATASET_SUBSET_SIZE: int = 3000
     
-    LABEL_COLUMNS: List[str] = field(
-        default_factory=lambda: [
-            "event_name", "disaster_type", "damage_severity", "informativeness"
-        ]
-    )
+    LABEL_COLUMNS: List[str] = field(default_factory=lambda: ["event_name", "disaster_type", "damage_severity", "informativeness"])
     
     # Analytics
     ANALYTICS_SAMPLE_SIZE: int = 500  # pairwise sim sampling per event
+    
     DISASTER_TYPE_GROUPS: dict = field(default_factory=lambda: {
         "California Wildfires": "Wildfire",
         "Hurricane Harvey":     "Hurricane/Flood",
@@ -130,39 +121,46 @@ class Config:
         "Mexico Earthquake":    "Earthquake",
     })
 
-    # Model Comparison (Ablation Study)
-    COMPARISON_MODELS: List[str] = field(
-        default_factory=lambda: ["clip", "siglip", "resnet50"]
-    )
+    # Model Comparison for the Ablation Study
+    
+    COMPARISON_MODELS: List[str] = field(default_factory=lambda: ["clip", "siglip", "resnet50"])
+    
+    
     MODEL_REGISTRY: dict = field(default_factory=lambda: {
         "clip": {
-            "name":          "CLIP ViT-B/32",
-            "hf_id":         "openai/clip-vit-base-patch32",
+            "name": "CLIP ViT-B/32",
+            "hf_id": "openai/clip-vit-base-patch32",
             "embedding_dim": 512,
-            "batch_size":    16,
+            "batch_size": 16,
         },
+        
         "siglip": {
-            "name":          "SigLIP-base",
-            "hf_id":         "google/siglip-base-patch16-224",
+            "name": "SigLIP-base",
+            "hf_id": "google/siglip-base-patch16-224",
             "embedding_dim": 768,
-            "batch_size":    8,
+            "batch_size": 8,
         },
+        
         "resnet50": {
-            "name":          "ResNet50 (ImageNet)",
-            "hf_id":         "torchvision",
+            "name": "ResNet50 (ImageNet)",
+            "hf_id": "torchvision",
             "embedding_dim": 2048,
-            "batch_size":    16,
+            "batch_size": 16,
         },
     })
+    
     COMPARISON_REDUCTIONS: List[str] = field(
         default_factory=lambda: ["umap", "tsne", "pca"]
     )
+    
     COMPARISON_CLUSTERERS: List[str] = field(
         default_factory=lambda: ["hdbscan", "kmeans"]
     )
+    
     KMEANS_N_CLUSTERS: int = 7
     COMPARISON_DIR: Path = DATA_DIR / "comparison"
     COMPARISON_CACHE_PATH: Path = DATA_DIR / "comparison" / "comparison_results.json"
+
 
     # Search & Classification Thresholds
     SEARCH_MIN_THRESHOLD: float = 0.28
@@ -170,7 +168,8 @@ class Config:
     SEARCH_MIN_QUERY_LENGTH: int = 3
     SEARCH_MAX_QUERY_LENGTH: int = 200
 
-    # Privacy - Face Blurring
+    
+    # Privacy  Face Blurring
     FACE_BLUR_KERNEL: Tuple[int, int] = (99, 99)
     FACE_BLUR_SIGMA: int = 30
     FACE_BLUR_PADDING: float = 0.1
@@ -178,9 +177,11 @@ class Config:
     FACE_DETECT_MIN_NEIGHBORS: int = 3
     FACE_DETECT_MIN_SIZE: Tuple[int, int] = (20, 20)
 
-    # Privacy: YuNet Deep Learning Face Detection
-    # "yunet" uses OpenCV's built in DNN face detector (fast, accurate, 230KB model)
-    # "haar" falls back to Haar cascades (no model file needed)
+    
+    # Privacy using YuNet Deep Learning Face Detection
+    # "yunet" uses OpenCV's built in DNN face detector
+    # "haar" falls back to Haar cascades no model file needed
+    
     FACE_DETECT_MODEL: str = "yunet"
     YUNET_MODEL_PATH: Path = DATA_DIR / "models" / "face_detection_yunet_2023mar.onnx"
     YUNET_CONFIDENCE_THRESHOLD: float = 0.7
@@ -212,10 +213,14 @@ class Config:
     
     def __post_init__(self):
         """Create necessary directories after initialisation."""
+    
+    
         self.ensure_directories()
+    
     
     def ensure_directories(self):
         """Create all necessary directories if they do not exist."""
+    
         dirs = [
             self.DATA_DIR,
             self.RAW_DATA_DIR,
@@ -228,25 +233,41 @@ class Config:
             self.FACE_CACHE_DIR,
             self.COMPARISON_DIR,
         ]
+    
         for d in dirs:
             d.mkdir(parents=True, exist_ok=True)
     
+    
+    
     def get_embedding_path(self, model_name: str) -> Path:
         """Get path for storing model embeddings."""
+    
+    
         return self.EMBEDDINGS_DIR / "{}_embeddings.h5".format(model_name)
+    
+    
     
     def get_reduction_path(self, model_name: str, method: str) -> Path:
         """Get path for storing reduced coordinates."""
+    
+    
         return self.VISUALISATION_DIR / "{}_{}_coords.npy".format(model_name, method)
+    
+    
+    
     
     def get_cluster_path(self, model_name: str, method: str) -> Path:
         """Get path for storing cluster labels."""
+        
         return self.VISUALISATION_DIR / "{}_{}_clusters.npy".format(model_name, method)
+    
+    
     
     def summary(self) -> str:
         """Return a formatted summary of the configuration."""
+        
         lines = [
-            "DISASTER VISUALISATION CONFIGURATION",
+            "Configuration",
             "Device: {}".format(self.DEVICE),
             "Default Model: {}".format(self.DEFAULT_MODEL),
             "Batch Size: {}".format(self.BATCH_SIZE),

@@ -7,9 +7,6 @@ This file computes quantitative metrics on the CLIP embedding space:
 - Intra-event similarity distributions
 - Global embedding space summary
 
-Author: Rashid
-Supervisor: XinHui Ma
-Project: Visualising Natural Disaster Image Embeddings
 """
 
 import sys

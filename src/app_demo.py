@@ -4,9 +4,6 @@ CrisisMMD Visualisation App - Frontend.
 A humanitarian aid tool for exploring disaster imagery using AI-powered
 semantic search and visual similarity. Built with CLIP embeddings and UMAP.
 
-Author: Rashid
-Supervisor: XinHui Ma
-Project: Visualising Natural Disaster Image Embeddings
 """
 
 # To run the script do this: .venv/Scripts/python.exe src/app_demo.py
